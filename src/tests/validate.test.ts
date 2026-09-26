@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDate, parsePrice, parseRatio, parseShares, parseTicker, toDateString } from '../components/validate.js';
+import {
+  parseDate, parsePrice, parseRatio, parseShares, parseTicker, toDateString, toHundredths,
+} from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
   assert.equal(parseTicker('aapl'), 'AAPL');
@@ -44,9 +46,21 @@ test('parseRatio reads X:Y as X new shares for every Y old', () => {
   for (const bad of ['3', '3:0', '0:1', '2:2', '1.5:1', '3/2', '-1:2']) assert.equal(parseRatio(bad), null, bad);
 });
 
-test('parseShares accepts positive whole numbers only', () => {
-  assert.equal(parseShares('10'), 10);
-  for (const bad of ['0', '-1', '1.5', 'ten', '', '1e3', '99999999999999999999']) assert.equal(parseShares(bad), null, bad);
+test('parseShares accepts positive amounts with up to 2 decimals, returned in hundredths', () => {
+  assert.equal(parseShares('10'), 1000);
+  assert.equal(parseShares(' 12.78 '), 1278);
+  assert.equal(parseShares('0.01'), 1);
+  assert.equal(parseShares('1.50'), 150);
+  for (const bad of ['0', '0.00', '-1', '1.234', '.5', '1.', 'ten', '', '1e3', '99999999999999999999']) {
+    assert.equal(parseShares(bad), null, bad);
+  }
+});
+
+test('toHundredths converts a Discord number option, rejecting more than 2 decimals', () => {
+  assert.equal(toHundredths(12.78), 1278);
+  assert.equal(toHundredths(0.29), 29); // 0.29 * 100 is 28.999999999999996 in floating point
+  assert.equal(toHundredths(7), 700);
+  for (const bad of [0, -1, 1.234, 19.99999, 1e21]) assert.equal(toHundredths(bad), null, String(bad));
 });
 
 test('parsePrice accepts non-negative decimals', () => {

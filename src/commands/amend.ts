@@ -41,7 +41,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .addLabelComponents(
         field('ticker', labels.ticker, row.ticker),
         field('side', labels.side, row.side!),
-        field('shares', labels.shares, String(row.shares)),
+        // Stored in hundredths; shown as the decimal the user typed, which parseShares reads back.
+        field('shares', labels.shares, String(row.shares! / 100)),
         field('price', labels.price, String(row.price)),
         field('date', labels.date, toDateString(row.trade_date)),
       ),

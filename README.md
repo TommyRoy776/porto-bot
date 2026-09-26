@@ -206,6 +206,8 @@ docker compose cp porto-bot:/data/porto.db ./porto-backup.db
 docker compose start porto-bot
 ```
 
+The bot also backs up the database by itself whenever an update changes its layout, just before applying the change. These copies sit next to `porto.db` in the volume, named like `porto.db.v2-backup-2026-09-26T13-45-00.db`, and are never deleted automatically. Remove old ones when you no longer need them.
+
 To restore that backup:
 
 ```sh

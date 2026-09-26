@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,6 +10,8 @@ import { migrate } from '../queries/migrate.js';
 const migrationsDir = fileURLToPath(new URL('../../migrations', import.meta.url));
 
 const version = (db: DatabaseSync) => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+
+const backups = (dir: string) => readdirSync(dir).filter((f) => f.includes('-backup-'));
 
 function dirWith(files: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), 'porto-migrations-'));
@@ -45,6 +47,28 @@ test('rolls back a failing migration and keeps the previous version', () => {
   assert.throws(() => migrate(db, dir));
   assert.equal(version(db), 1);
   assert.equal(db.prepare('SELECT count(*) AS c FROM t').get()!.c, 0);
+});
+
+test('backs up an existing database file before applying pending migrations', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'porto-backup-'));
+  const path = join(dir, 'porto.db');
+  const db = new DatabaseSync(path);
+  migrate(db, dirWith({ '001_create.sql': 'CREATE TABLE t (n INTEGER); INSERT INTO t VALUES (1);' }));
+  assert.deepEqual(backups(dir), [], 'a fresh database has nothing to back up');
+
+  const next = dirWith({
+    '001_create.sql': 'CREATE TABLE t (n INTEGER); INSERT INTO t VALUES (1);',
+    '002_double.sql': 'UPDATE t SET n = n * 100;',
+  });
+  migrate(db, next);
+  const [backup] = backups(dir);
+  assert.match(backup, /^porto\.db\.v1-backup-.+\.db$/);
+  const old = new DatabaseSync(join(dir, backup), { readOnly: true });
+  assert.equal(version(old), 1);
+  assert.equal(old.prepare('SELECT n FROM t').get()!.n, 1);
+
+  migrate(db, next);
+  assert.equal(backups(dir).length, 1, 'nothing pending means no new backup');
 });
 
 test('the real migrations apply to a fresh database', () => {
