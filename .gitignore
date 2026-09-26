@@ -19,3 +19,6 @@
 # Build
 node_modules/
 dist/
+
+# dev sqlite files 
+*.db
