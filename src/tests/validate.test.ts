@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseCryptoTicker, parseDate, parseExpiry, parseLookupTicker, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
+  parseCalendarDate, parseCryptoTicker, parseDate, parseExpiry, parseLookupTicker, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -92,4 +92,10 @@ test('parseExpiry accepts today or later in the configured time zone, the opposi
   for (const bad of ['2026-03-08', '2026-02-30', '2026-3-20', '', 'friday']) {
     assert.equal(parseExpiry(bad, 'America/New_York', now), null, bad);
   }
+});
+
+test('parseCalendarDate accepts any real date, past or future', () => {
+  assert.equal(parseCalendarDate(' 1999-12-31 '), noonUtc('1999-12-31'));
+  assert.equal(parseCalendarDate('2099-01-01'), noonUtc('2099-01-01'));
+  for (const bad of ['2025-02-29', '2026-1-01', '']) assert.equal(parseCalendarDate(bad), null, bad);
 });

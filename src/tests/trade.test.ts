@@ -114,3 +114,11 @@ test('invalid option input is a UserError', () => {
     assert.throws(() => tradeRow('u', 'BUY', 'option', typed({ ...base, ...bad }), 'UTC', NOW), UserError, JSON.stringify(bad));
   }
 });
+
+test('an option can be sold after its expiry, closing a position bought before it, but not bought', () => {
+  const values = { ticker: 'AAPL', right: 'CALL', strike: 150, expiry: '2026-03-06', contracts: 1, price: 0.01 };
+  const row = tradeRow('u', 'SELL', 'option', typed(values), 'UTC', NOW);
+  assert.equal(row.expiry, Date.parse('2026-03-06T12:00:00Z') / 1000);
+  assert.throws(() => tradeRow('u', 'BUY', 'option', typed(values), 'UTC', NOW), UserError);
+  assert.throws(() => tradeRow('u', 'SELL', 'option', typed({ ...values, expiry: '2026-02-30' }), 'UTC', NOW), UserError);
+});
