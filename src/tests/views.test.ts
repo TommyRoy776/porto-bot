@@ -61,3 +61,17 @@ test('position shows its holdings and a page of transactions, with page buttons 
     [['position:0:42:AAPL', false], ['position:2:42:AAPL', false]],
   );
 });
+
+test('portfolio groups holdings into stock, crypto and option sections, hiding empty ones, with one total', () => {
+  const call: Position = { sec_type: 'OPTION', ticker: 'AAPL', shares: 1, avgCost: 2, opt_right: 'CALL', strike: 150, expiry: 1_800_000_000 };
+  const msft: Position = { ...aapl, ticker: 'MSFT' };
+  const all = texts(portfolioView('42', [call, aapl, btc, msft], [])).join('\n');
+  assert.match(all, /\*\*Stocks\*\*\n\*\*AAPL\*\*.*\n\*\*MSFT\*\*/);
+  assert.ok(all.indexOf('**Stocks**') < all.indexOf('**Crypto**') && all.indexOf('**Crypto**') < all.indexOf('**Options**'));
+  assert.match(all, /\*\*Options\*\*\n\*\*AAPL CALL/);
+  assert.match(all, /\*\*Total cost basis\*\* \$30,450\.00/);
+
+  const stocksOnly = texts(portfolioView('42', [aapl], [])).join('\n');
+  assert.match(stocksOnly, /\*\*Stocks\*\*/);
+  assert.doesNotMatch(stocksOnly, /Crypto|Options/);
+});

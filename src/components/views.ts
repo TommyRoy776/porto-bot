@@ -9,7 +9,7 @@ import {
 import { messages } from '../strings/messages.js';
 import type { Position } from './ledger.js';
 import { pageButtons } from './pageButtons.js';
-import { value } from './units.js';
+import { value, type Holdable } from './units.js';
 
 // /portfolio and /position replies, built from Discord's message components (Container,
 // TextDisplay, Separator) instead of an embed with code-block tables. With the IsComponentsV2 flag
@@ -38,11 +38,23 @@ function addTransactions(container: ContainerBuilder, lines: string[]) {
   });
 }
 
+const totalLine = (positions: Position[]) =>
+  messages.portfolio.total(positions.reduce((sum, p) => sum + value(p.sec_type, p.shares, p.avgCost), 0));
+
 // One line per holding, then the total cost basis across all of them.
-function holdingsText(positions: Position[], empty: string) {
-  if (!positions.length) return empty;
-  const cost = positions.reduce((sum, p) => sum + value(p.sec_type, p.shares, p.avgCost), 0);
-  return [...positions.map(messages.holdingLine), messages.portfolio.total(cost)].join('\n');
+const holdingsText = (positions: Position[], empty: string) =>
+  positions.length ? [...positions.map(messages.holdingLine), totalLine(positions)].join('\n') : empty;
+
+// /portfolio's holdings: a titled section per security type, in this order, each left out when
+// empty, then one total across every section. positions arrive sorted by ticker, and filtering
+// keeps that order within each section.
+const SECTIONS: Holdable[] = ['STOCK', 'CRYPTO', 'OPTION'];
+function sectionedHoldings(positions: Position[]) {
+  if (!positions.length) return messages.portfolio.noHoldings;
+  const sections = SECTIONS.map((type) => positions.filter((p) => p.sec_type === type))
+    .filter((group) => group.length)
+    .map((group) => [messages.portfolio.section[group[0].sec_type], ...group.map(messages.holdingLine)].join('\n'));
+  return [...sections, totalLine(positions)].join('\n\n');
 }
 
 // ponytail: no truncation. The text budget fits roughly 40 holdings alongside the recent list;
@@ -51,7 +63,7 @@ export function portfolioView(userId: string, positions: Position[], recent: str
   const container = new ContainerBuilder()
     .addTextDisplayComponents(
       text(messages.portfolio.title(userId)),
-      text(`${messages.portfolio.holdings}\n${holdingsText(positions, messages.portfolio.noHoldings)}`),
+      text(`${messages.portfolio.holdings}\n${sectionedHoldings(positions)}`),
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Large))
     .addTextDisplayComponents(text(messages.portfolio.recent));
