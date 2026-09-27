@@ -1,4 +1,4 @@
-import type { Holdable } from './units.js';
+import { value, type Holdable } from './units.js';
 
 // A row of the transactions table (migrations/001_transactions.sql).
 export type Tx = {
@@ -38,8 +38,9 @@ export const positionKey = (tx: Pick<Tx, 'sec_type' | 'ticker' | 'opt_right' | '
     ? `OPTION ${tx.ticker} ${tx.opt_right} ${tx.strike} ${tx.expiry}`
     : `${tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type} ${tx.ticker}`;
 
-// Quantity of that row's position held after each row, in replay order.
-export type History = { tx: Tx; shares: number }[];
+// After each row, in replay order: the quantity of that row's position held, and for a SELL the
+// realized P/L in dollars, (sell price − average cost at that moment) × quantity sold.
+export type History = { tx: Tx; shares: number; realized: number | null }[];
 
 export type Replay =
   | { ok: true; positions: Position[]; history: History }
@@ -56,6 +57,7 @@ export function replay(rows: Tx[]): Replay {
     const sec_type = tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type;
     const { ticker, opt_right, strike, expiry } = tx;
     const pos = held.get(key) ?? { sec_type, ticker, opt_right, strike, expiry, shares: 0, avgCost: 0 };
+    let realized: number | null = null;
 
     if (tx.sec_type === 'SPLIT') {
       // shares is in hundredths, so this rounds half-up to the nearest 0.01 share; anything
@@ -69,12 +71,13 @@ export function replay(rows: Tx[]): Replay {
       pos.shares += tx.shares!;
     } else {
       if (tx.shares! > pos.shares) return { ok: false, oversold: tx };
+      realized = value(sec_type, tx.shares!, tx.price! - pos.avgCost);
       pos.shares -= tx.shares!;
     }
 
     if (pos.shares > 0) held.set(key, pos);
     else held.delete(key);
-    history.push({ tx, shares: pos.shares });
+    history.push({ tx, shares: pos.shares, realized });
   }
 
   // Alphabetical by ticker; options of one ticker by nearest expiry, then strike, then right.

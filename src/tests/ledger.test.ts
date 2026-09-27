@@ -128,9 +128,9 @@ test('history records shares held of that ticker after each row, in replay order
   const result = replay([s, sp, b]);
   assert.ok(result.ok);
   assert.deepEqual(result.history, [
-    { tx: b, shares: 5 },
-    { tx: sp, shares: 8 },
-    { tx: s, shares: 5 },
+    { tx: b, shares: 5, realized: null },
+    { tx: sp, shares: 8, realized: null },
+    { tx: s, shares: 5, realized: 3 * (30 - 20) / 100 },
   ]);
 });
 
@@ -210,4 +210,27 @@ test('selling an option contract you do not hold at that strike is rejected', ()
   const call = { sec_type: 'OPTION' as const, opt_right: 'CALL' as const, strike: 150, expiry: 100 * DAY };
   const bad = sell(1, 1, 2, { ...call, strike: 155 });
   assert.deepEqual(replay([buy(1, 1, 1, call), bad]), { ok: false, oversold: bad });
+});
+
+// Realized P/L of each SELL row, in replay order.
+function realized(rows: Tx[]) {
+  const result = replay(rows);
+  assert.ok(result.ok);
+  return result.history.filter((h) => h.tx.side === 'SELL').map((h) => h.realized);
+}
+
+test('realized P/L uses the average cost at the moment of each sale', () => {
+  // 10 @ $100, 10 @ $200 → avg $150; sell 5 @ $180 → +$150. Then 10 @ $50 → avg (15×150 + 10×50)/25 = $110;
+  // sell 25 @ $100 → -$250.
+  assert.deepEqual(
+    realized([buy(1000, 100, 1), buy(1000, 200, 2), sell(500, 180, 3), buy(1000, 50, 4), sell(2500, 100, 5)]),
+    [150, -250],
+  );
+});
+
+test('realized P/L for crypto divides by its own scale, and for options multiplies by 100', () => {
+  const coin = { sec_type: 'CRYPTO' as const, ticker: 'BTC-USD' };
+  assert.deepEqual(realized([buy(50_000_000, 40_000, 1, coin), sell(10_000_000, 50_000, 2, coin)]), [1000]);
+  const call = { sec_type: 'OPTION' as const, opt_right: 'CALL' as const, strike: 150, expiry: 100 * DAY };
+  assert.deepEqual(realized([buy(2, 3, 1, call), sell(1, 4.5, 2, call)]), [150]);
 });
