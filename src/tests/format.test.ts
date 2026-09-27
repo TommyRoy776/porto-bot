@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { money, shares, table, total } from '../components/format.js';
+import { money, table, total } from '../components/format.js';
 import { historyLines } from '../components/historyLines.js';
 import { replay, type Tx } from '../components/ledger.js';
 import { holdingRow, messages } from '../strings/messages.js';
@@ -21,13 +21,6 @@ test('money keeps at least 2 and at most 4 decimals, totals are always cents', (
   assert.equal(total(853.33336), '$853.33');
 });
 
-test('shares are stored in hundredths and shown as a decimal', () => {
-  assert.equal(shares(1278), '12.78');
-  assert.equal(shares(1000), '10');
-  assert.equal(shares(150), '1.5');
-  assert.equal(shares(123456700), '1,234,567');
-});
-
 test('every transaction renders as an action line then a metadata line', () => {
   const tx = {
     id: 1, ref: 'BSS07', user_id: 'u', sec_type: 'STOCK' as const, side: 'BUY' as const, ticker: 'AAPL',
@@ -40,7 +33,7 @@ test('every transaction renders as an action line then a metadata line', () => {
 });
 
 test('a holdings row shows decimal shares and a cost basis in dollars', () => {
-  assert.deepEqual(holdingRow({ ticker: 'AAPL', shares: 1250, avgCost: 10 }), ['AAPL', '12.5', '$10.00', '$125.00']);
+  assert.deepEqual(holdingRow({ sec_type: 'STOCK', ticker: 'AAPL', shares: 1250, avgCost: 10 }), ['AAPL', '12.5', '$10.00', '$125.00']);
 });
 
 test('a transaction list puts a separator between entries', () => {

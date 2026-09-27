@@ -28,7 +28,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const trade_date = parseDate(undefined, config.tz)!;
 
   const holders = usersWithTicker(ticker).filter((userId) =>
-    ledgerOf(userId).positions.some((p) => p.ticker === ticker),
+    ledgerOf(userId).positions.some((p) => p.sec_type === 'STOCK' && p.ticker === ticker),
   );
   for (const user_id of holders) {
     commitChange(user_id, {

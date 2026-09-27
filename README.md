@@ -194,6 +194,21 @@ docker compose run --rm porto-bot node dist/register.js
 
 Your data is kept, and any changes to how it is stored are applied automatically.
 
+### Moving crypto recorded before version 2
+
+Before version 2 the bot had no crypto support, so members may have recorded coins with `/buy` as if they were stocks
+(for example `BTC`). After updating to version 2, you can turn those entries into real crypto entries, for every member
+at once. Run this once per coin, with the ticker they used:
+
+```sh
+docker compose stop porto-bot
+docker compose run --rm porto-bot node dist/convertCrypto.js BTC
+docker compose start porto-bot
+```
+
+The entries become `BTC-USD` crypto entries with new IDs like `BCC01`. To store the coin under another name, add it
+at the end, for example `node dist/convertCrypto.js XBT BTC-USD`.
+
 To stay on a specific version instead of the newest, change the `image:` line in `compose.yaml` to a version from
 the [releases page](https://github.com/aer35/porto-bot/releases), for example:
 

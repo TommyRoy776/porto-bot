@@ -6,10 +6,6 @@ export const money = (n: number) =>
 export const total = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// Shares are stored in whole hundredths (see toHundredths); 1278 shows as "12.78", 1000 as "10".
-export const shares = (hundredths: number) =>
-  (hundredths / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
-
 // Discord renders this in each viewer's own locale and time zone.
 export const date = (unix: number) => `<t:${unix}:D>`;
 

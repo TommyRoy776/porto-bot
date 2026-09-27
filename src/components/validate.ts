@@ -5,6 +5,14 @@ export function parseTicker(input: string) {
   return /^[A-Z.]{1,6}$/.test(ticker) ? ticker : null;
 }
 
+// Yahoo-style crypto pair like BTC-USD: the coin, then the currency it is priced in. A bare
+// symbol like BTC means BTC-USD, so one coin is never stored under two tickers.
+export function parseCryptoTicker(input: string) {
+  const ticker = input.trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,10}(-[A-Z]{3,4})?$/.test(ticker)) return null;
+  return ticker.includes('-') ? ticker : `${ticker}-USD`;
+}
+
 // Today's calendar date as YYYY-MM-DD in the given IANA time zone (en-CA formats as YYYY-MM-DD).
 const todayIn = (tz: string, now: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
 
@@ -26,22 +34,6 @@ export function parseRatio(input: string) {
   if (!match) return null;
   const [split_to, split_from] = [Number(match[1]), Number(match[2])];
   return split_to > 0 && split_from > 0 && split_to !== split_from ? { split_to, split_from } : null;
-}
-
-// Shares are stored as whole hundredths (12.78 shares → 1278), so ledger math stays in integers.
-// Returns null for 0 or less, or more than 2 decimals. The decimals are checked on String(shares),
-// which is the shortest text for the number (0.29, not 0.28999…); Math.round then absorbs the float
-// error in the multiply (0.29 * 100 is 28.999999999999996).
-export function toHundredths(shares: number) {
-  if (!/^\d+(\.\d{1,2})?$/.test(String(shares))) return null;
-  const hundredths = Math.round(shares * 100);
-  return hundredths > 0 && Number.isSafeInteger(hundredths) ? hundredths : null;
-}
-
-// Typed shares from the /amend modal, like "12.78", in hundredths.
-export function parseShares(input: string) {
-  const trimmed = input.trim();
-  return /^\d+(\.\d{1,2})?$/.test(trimmed) ? toHundredths(Number(trimmed)) : null;
 }
 
 // Highest price per unit accepted. Well above any real share or coin, low enough to catch a typo.

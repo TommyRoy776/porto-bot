@@ -13,7 +13,8 @@ import { ownRow } from '../components/ownRow.js';
 import { commitChange } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
 import { parseRef } from '../components/ref.js';
-import { parseDate, parsePrice, parseShares, parseTicker, priceText, toDateString } from '../components/validate.js';
+import { parseQuantity, quantityText } from '../components/units.js';
+import { parseDate, parsePrice, parseTicker, priceText, toDateString } from '../components/validate.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
@@ -50,8 +51,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .addLabelComponents(
         field('ticker', labels.ticker, row.ticker, 1, 6),
         field('side', labels.side, row.side!, 3, 4),
-        // Stored in hundredths; shown as the decimal the user typed, which parseShares reads back.
-        field('shares', labels.shares, String(row.shares! / 100), 1, 20),
+        // Stored scaled; shown as the decimal the user typed, which parseQuantity reads back.
+        field('shares', labels.shares, quantityText(row.shares!, 'STOCK'), 1, 20),
         field('price', labels.price, priceText(row.price!), 1, 20),
         field('date', labels.date, toDateString(row.trade_date), 10, 10),
       ),
@@ -64,7 +65,7 @@ export async function modal(interaction: ModalSubmitInteraction, [ref]: string[]
   if (!ticker) throw new UserError(messages.invalidTicker);
   const side = value('side').trim().toUpperCase();
   if (side !== 'BUY' && side !== 'SELL') throw new UserError(messages.amend.invalidSide);
-  const shares = parseShares(value('shares'));
+  const shares = parseQuantity(value('shares'), 'STOCK');
   if (shares === null) throw new UserError(messages.invalidShares);
   const price = parsePrice(value('price'));
   if (price === null) throw new UserError(messages.invalidPrice);

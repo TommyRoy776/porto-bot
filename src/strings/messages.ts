@@ -1,5 +1,6 @@
-import { date, money, shares, total } from '../components/format.js';
+import { date, money, total } from '../components/format.js';
 import type { Position, Tx } from '../components/ledger.js';
+import { formatQuantity, value } from '../components/units.js';
 
 // Every transaction renders the same way, in two lines:
 //
@@ -9,17 +10,17 @@ import type { Position, Tx } from '../components/ledger.js';
 // Rows that have no price, like splits, put their detail on the first line and drop the total.
 // New transaction types (V2 options) follow the same shape: "**BUY** 2 × CALL of **AAPL** ...".
 // The paradigm is documented in CLAUDE.md; keep it in sync.
-// Share counts are in hundredths (1278 = 12.78 shares), so money totals divide by 100.
+// Quantities are stored scaled (src/components/units.ts), so formatQuantity and value do the unscaling.
 const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'
     ? `**SPLIT** ${tx.split_to}:${tx.split_from} of **${tx.ticker}**` +
-      (counts ? ` — ${shares(counts[0])} → ${shares(counts[1])} shares` : '')
-    : `**${tx.side}** ${shares(tx.shares!)} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
+      (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} shares` : '')
+    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
 
 const meta = (tx: Tx) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
-    : `\`${tx.ref}\` · total ${total((tx.shares! * tx.price!) / 100)} · ${date(tx.trade_date)}`;
+    : `\`${tx.ref}\` · total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · ${date(tx.trade_date)}`;
 
 const txLine = (tx: Tx, counts?: [number, number]) => `${action(tx, counts)}\n${meta(tx)}`;
 
@@ -129,7 +130,7 @@ export const messages = {
 // A holdings row for the table in /portfolio and /position: ticker, shares, average cost, cost basis.
 export const holdingRow = (position: Position) => [
   position.ticker,
-  shares(position.shares),
+  formatQuantity(position.sec_type, position.shares),
   money(position.avgCost),
-  total((position.shares * position.avgCost) / 100),
+  total(value(position.sec_type, position.shares, position.avgCost)),
 ];

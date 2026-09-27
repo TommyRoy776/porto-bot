@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseDate, parsePrice, parseRatio, parseShares, parseTicker, toDateString, toHundredths, toPrice, priceText,
+  parseCryptoTicker, parseDate, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -46,23 +46,6 @@ test('parseRatio reads X:Y as X new shares for every Y old', () => {
   for (const bad of ['3', '3:0', '0:1', '2:2', '1.5:1', '3/2', '-1:2']) assert.equal(parseRatio(bad), null, bad);
 });
 
-test('parseShares accepts positive amounts with up to 2 decimals, returned in hundredths', () => {
-  assert.equal(parseShares('10'), 1000);
-  assert.equal(parseShares(' 12.78 '), 1278);
-  assert.equal(parseShares('0.01'), 1);
-  assert.equal(parseShares('1.50'), 150);
-  for (const bad of ['0', '0.00', '-1', '1.234', '.5', '1.', 'ten', '', '1e3', '99999999999999999999']) {
-    assert.equal(parseShares(bad), null, bad);
-  }
-});
-
-test('toHundredths converts a Discord number option, rejecting more than 2 decimals', () => {
-  assert.equal(toHundredths(12.78), 1278);
-  assert.equal(toHundredths(0.29), 29); // 0.29 * 100 is 28.999999999999996 in floating point
-  assert.equal(toHundredths(7), 700);
-  for (const bad of [0, -1, 1.234, 19.99999, 1e21]) assert.equal(toHundredths(bad), null, String(bad));
-});
-
 test('parsePrice accepts prices above 0 with up to 8 decimals, and an optional $ and commas', () => {
   assert.equal(parsePrice('150.25'), 150.25);
   assert.equal(parsePrice('$1,234.5'), 1234.5);
@@ -83,4 +66,14 @@ test('priceText writes a price as plain decimals that parsePrice reads back', ()
   for (const price of [150, 150.25, 1e-7, 0.00000001, 3.2]) assert.equal(parsePrice(priceText(price)), price, String(price));
   assert.equal(priceText(1e-7), '0.0000001');
   assert.equal(priceText(150), '150');
+});
+
+test('parseCryptoTicker accepts Yahoo-style pairs and treats a bare symbol as priced in USD', () => {
+  assert.equal(parseCryptoTicker(' btc-usd '), 'BTC-USD');
+  assert.equal(parseCryptoTicker('eth'), 'ETH-USD');
+  assert.equal(parseCryptoTicker('1INCH-USD'), '1INCH-USD');
+  assert.equal(parseCryptoTicker('SOL-EUR'), 'SOL-EUR');
+  for (const bad of ['', '-USD', 'BTC-', 'BTC-US', 'BTC-USDTX', 'ABCDEFGHIJK', 'BTC USD', 'BTC.USD', 'BTC-USD-X']) {
+    assert.equal(parseCryptoTicker(bad), null, bad);
+  }
 });

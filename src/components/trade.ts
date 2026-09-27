@@ -11,7 +11,8 @@ import type { NewTx } from './ledger.js';
 import { tickerAutocomplete } from './tickerAutocomplete.js';
 import { commitChange } from './userLedger.js';
 import { UserError } from './userError.js';
-import { MAX_PRICE, parseDate, parseTicker, toHundredths, toPrice } from './validate.js';
+import { toScaled } from './units.js';
+import { MAX_PRICE, parseDate, parseTicker, toPrice } from './validate.js';
 
 type Side = 'BUY' | 'SELL';
 
@@ -56,7 +57,7 @@ const types: Record<string, SecurityType> = {
       const ticker = parseTicker(options.getString('ticker', true));
       if (!ticker) throw new UserError(messages.invalidTicker);
       // Discord number options cannot limit decimal places, so the 2-decimal rule is checked here.
-      const shares = toHundredths(options.getNumber('shares', true));
+      const shares = toScaled(options.getNumber('shares', true), 'STOCK');
       if (shares === null) throw new UserError(messages.invalidShares);
       const price = toPrice(options.getNumber('price', true));
       if (price === null) throw new UserError(messages.invalidPrice);
