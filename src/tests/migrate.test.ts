@@ -98,7 +98,8 @@ test('002 backfills references for rows written before it, and seeds the counter
      VALUES ('u', 'SPLIT', NULL, 'AAPL', 1, 2, 3)`,
   ).run();
 
-  migrate(db);
+  const upTo002 = ['001_transactions.sql', '002_transaction_refs.sql'];
+  migrate(db, dirWith(Object.fromEntries(upTo002.map((f) => [f, readFileSync(join(migrationsDir, f), 'utf8')]))));
 
   assert.deepEqual(
     db.prepare('SELECT ref FROM transactions ORDER BY id').all().map((r) => r.ref),
@@ -109,5 +110,34 @@ test('002 backfills references for rows written before it, and seeds the counter
     { prefix: 'BS', next: 3 },
     { prefix: 'SL', next: 2 },
     { prefix: 'SS', next: 2 },
+  ]);
+});
+
+test('ref_prefixes renames 2-letter references and counters to 3 letters', () => {
+  const db = new DatabaseSync(':memory:');
+  // Migrate to just before ref_prefixes, write rows the 2-letter way, then apply the rest.
+  const before = readdirSync(migrationsDir).filter((f) => /^\d+_/.test(f) && parseInt(f, 10) < 2026092700);
+  migrate(db, dirWith(Object.fromEntries(before.map((f) => [f, readFileSync(join(migrationsDir, f), 'utf8')]))));
+  const insert = db.prepare(
+    `INSERT INTO transactions (user_id, sec_type, side, ticker, shares, price, trade_date, split_from, split_to, ref)
+     VALUES ('u', ?, ?, 'AAPL', ?, ?, 1, ?, ?, ?)`,
+  );
+  insert.run('STOCK', 'BUY', 100, 1, null, null, 'BS01');
+  insert.run('STOCK', 'SELL', 100, 1, null, null, 'SS01');
+  insert.run('STOCK', 'BUY', 100, 1, null, null, 'BS02');
+  insert.run('SPLIT', null, null, null, 2, 3, 'SL01');
+  db.exec("INSERT INTO ref_counters VALUES ('BS', 3), ('SS', 2), ('SL', 2)");
+
+  migrate(db);
+
+  assert.deepEqual(
+    db.prepare('SELECT ref FROM transactions ORDER BY id').all().map((r) => r.ref),
+    ['BSS01', 'SSS01', 'BSS02', 'XSS01'],
+  );
+  const counters = db.prepare('SELECT prefix, next FROM ref_counters ORDER BY prefix').all();
+  assert.deepEqual(counters.map(({ prefix, next }) => ({ prefix, next })), [
+    { prefix: 'BSS', next: 3 },
+    { prefix: 'SSS', next: 2 },
+    { prefix: 'XSS', next: 2 },
   ]);
 });

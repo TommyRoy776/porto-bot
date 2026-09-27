@@ -168,14 +168,15 @@ What the options mean:
 | `price`  | Price per share in USD. A leading `$` is optional                                       |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
-| `id`     | A transaction reference, like `BS01`                                                    |
+| `id`     | A transaction reference, like `BSS01`                                                   |
 | `ratio`  | The split, written as new:old, like `3:2` or `1:10`                                     |
 
 
 A few things worth knowing:
 
-- Every transaction gets a short ID like `BS01` (buy), `SS01` (sell) or `SL01` (split), shown beside it. That is what
-  you type into `/amend` and `/delete`.
+- Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. That is
+  what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
+  is `SSS01` and `SL01` is `XSS01`.
 - Deleting or amending a transaction will **not** change or remove the message already in the channel.
 - The bot never lets you sell more shares than you own, or edit your history into an impossible state.
 - `/reset` and `/split` are limited to members with the **Manage Server** permission (generally moderators). You can change who may use them in

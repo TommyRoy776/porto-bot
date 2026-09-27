@@ -37,12 +37,12 @@ test('ledgers are per user', () => {
 
 test('references number each transaction type, and are never reused', () => {
   // Counters are shared by the whole bot, so compare the numbers rather than fixing them.
-  const seq = (ref: string) => Number(ref.slice(2));
+  const seq = (ref: string) => Number(ref.slice(3));
   const buy1 = commitChange('r', { insert: trade('r', 'BUY', 10) })!;
   const buy2 = commitChange('r', { insert: trade('r', 'BUY', 10) })!;
   const sell1 = commitChange('r', { insert: trade('r', 'SELL', 1) })!;
-  assert.match(buy1.ref, /^BS\d\d+$/);
-  assert.match(sell1.ref, /^SS\d\d+$/);
+  assert.match(buy1.ref, /^BSS\d\d+$/);
+  assert.match(sell1.ref, /^SSS\d\d+$/);
   assert.equal(seq(buy2.ref), seq(buy1.ref) + 1);
 
   // Deleting the newest buy must not hand its reference to the next one.
@@ -54,6 +54,14 @@ test('amending a buy into a sell gives it a sell reference', () => {
   commitChange('s', { insert: trade('s', 'BUY', 10) });
   const second = commitChange('s', { insert: trade('s', 'BUY', 4) })!;
   const amended = commitChange('s', { update: { ...second, side: 'SELL' } })!;
-  assert.match(amended.ref, /^SS\d\d+$/);
+  assert.match(amended.ref, /^SSS\d\d+$/);
   assert.equal(amended.side, 'SELL');
+});
+
+test('a split gets an XSS reference from the ref_prefixes table', () => {
+  commitChange('x', { insert: trade('x', 'BUY', 10) });
+  const split = commitChange('x', {
+    insert: { user_id: 'x', sec_type: 'SPLIT', side: null, ticker: 'AAPL', shares: null, price: null, trade_date: 86_400, split_from: 1, split_to: 2 },
+  })!;
+  assert.match(split.ref, /^XSS\d\d+$/);
 });

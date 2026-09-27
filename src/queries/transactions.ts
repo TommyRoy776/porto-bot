@@ -1,5 +1,5 @@
 import type { NewTx, Tx } from '../components/ledger.js';
-import { formatRef, refPrefix } from '../components/ref.js';
+import { formatRef } from '../components/ref.js';
 import { db } from './db.js';
 
 // node:sqlite returns null-prototype objects whose columns match Tx exactly, so the casts are safe.
@@ -12,7 +12,18 @@ export const userRows = (userId: string) =>
 export const getRow = (ref: string) =>
   db.prepare('SELECT * FROM transactions WHERE ref = ?').get(ref) as Tx | undefined;
 
-// Reserves the next number for a transaction type, e.g. BS01. Counters only ever go up, so a
+// The three-letter reference prefix for a row's type, e.g. BSS for a stock buy. ref_prefixes
+// holds one row per type keyed by the same columns as transactions; `side IS ?` matches the NULL
+// side of a split. A missing prefix is a bug (a new type without its migration row), not user error.
+function refPrefix(tx: Pick<Tx, 'sec_type' | 'side'>) {
+  const row = db.prepare('SELECT prefix FROM ref_prefixes WHERE sec_type = ? AND side IS ?').get(tx.sec_type, tx.side) as
+    | { prefix: string }
+    | undefined;
+  if (!row) throw new Error(`No ref_prefixes row for ${tx.sec_type} ${tx.side}`);
+  return row.prefix;
+}
+
+// Reserves the next number for a transaction type, e.g. BSS01. Counters only ever go up, so a
 // deleted transaction's reference is never handed to a later one.
 function nextRef(prefix: string) {
   const { next } = db
@@ -37,7 +48,7 @@ export const insertRow = (tx: NewTx) =>
 
 // Overwrites the user-editable fields of a row and returns it as stored. user_id, sec_type and
 // created_at are never changed, so an amended row keeps its place among same-day rows.
-// An amend that flips BUY to SELL gets a new reference, so a BS row is never really a sell.
+// An amend that flips BUY to SELL gets a new reference, so a BSS row is never really a sell.
 export function updateRow({ user_id, created_at, ...row }: Tx) {
   const prefix = refPrefix(row);
   const fields = { ...row, ref: row.ref.startsWith(prefix) ? row.ref : nextRef(prefix) };

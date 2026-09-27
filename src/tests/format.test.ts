@@ -30,12 +30,12 @@ test('shares are stored in hundredths and shown as a decimal', () => {
 
 test('every transaction renders as an action line then a metadata line', () => {
   const tx = {
-    id: 1, ref: 'BS07', user_id: 'u', sec_type: 'STOCK' as const, side: 'BUY' as const, ticker: 'AAPL',
+    id: 1, ref: 'BSS07', user_id: 'u', sec_type: 'STOCK' as const, side: 'BUY' as const, ticker: 'AAPL',
     shares: 1278, price: 150, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
   };
   assert.equal(
     messages.txLine(tx),
-    '**BUY** 12.78 × shares of **AAPL** @ $150.00\n`BS07` · total $1,917.00 · <t:1767268800:D>',
+    '**BUY** 12.78 × shares of **AAPL** @ $150.00\n`BSS07` · total $1,917.00 · <t:1767268800:D>',
   );
 });
 

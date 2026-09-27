@@ -50,11 +50,11 @@ export const messages = {
     price: 'Price per share',
     date: 'Trade date as YYYY-MM-DD. Defaults to today',
     user: 'Whose transactions to show. Defaults to you',
-    id: 'Transaction ID, e.g. BS01, shown next to each transaction',
+    id: 'Transaction ID, e.g. BSS01, shown next to each transaction',
   },
 
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
-  invalidRef: 'Transaction IDs look like `BS01` (buy), `SS01` (sell) or `SL01` (split).',
+  invalidRef: 'Transaction IDs look like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split).',
   invalidShares: 'Shares must be above 0 with at most 2 decimals, like `12.78`.',
   invalidPrice: 'Price must be a number, 0 or more.',
   invalidDate: 'Dates must be `YYYY-MM-DD` and not in the future.',
