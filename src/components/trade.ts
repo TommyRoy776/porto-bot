@@ -12,8 +12,19 @@ import { tickerAutocomplete } from './tickerAutocomplete.js';
 import { realizedOf } from '../queries/holdings.js';
 import { commitChange } from './userLedger.js';
 import { UserError } from './userError.js';
-import { toScaled, type Holdable } from './units.js';
-import { MAX_PRICE, parseCalendarDate, parseCryptoTicker, parseDate, parseExpiry, parseTicker, toPrice } from './validate.js';
+import { toScaled, units, type Holdable } from './units.js';
+import {
+  ANY_TICKER_MAX,
+  MAX_PRICE,
+  MIN_PRICE,
+  parseCalendarDate,
+  parseCryptoTicker,
+  parseDate,
+  parseExpiry,
+  parseTicker,
+  STOCK_TICKER_MAX,
+  toPrice,
+} from './validate.js';
 
 type Side = 'BUY' | 'SELL';
 
@@ -35,35 +46,61 @@ type SecurityType = {
 // The columns only splits and options use.
 const NOT_SPLIT_OR_OPTION = { split_from: null, split_to: null, opt_right: null, strike: null, expiry: null };
 
-// Ticker, quantity and price options, shared by stock and crypto. Only /sell autocompletes the
-// ticker, from what the user already holds.
-const tickerQuantityPrice = (
-  sub: SlashCommandSubcommandBuilder,
-  side: Side,
-  ticker: { description: string; maxLength: number },
-  quantity: { name: string; description: string; min: number },
-  priceDescription: string,
-) =>
-  sub
-    .addStringOption((o) =>
-      o
-        .setName('ticker')
-        .setDescription(ticker.description)
-        .setRequired(true)
-        .setMaxLength(ticker.maxLength)
-        .setAutocomplete(side === 'SELL'),
-    )
-    .addNumberOption((o) =>
-      o.setName(quantity.name).setDescription(quantity.description).setRequired(true).setMinValue(quantity.min),
-    )
-    .addNumberOption((o) =>
-      o.setName('price').setDescription(priceDescription).setRequired(true).setMinValue(0.00000001).setMaxValue(MAX_PRICE),
-    );
+// How each type's ticker and quantity are checked, shared by /buy, /sell and /amend.
+export const rules = {
+  STOCK: {
+    parseTicker,
+    tickerMax: STOCK_TICKER_MAX,
+    invalidTicker: messages.invalidTicker,
+    invalidQuantity: messages.invalidShares,
+  },
+  CRYPTO: {
+    parseTicker: parseCryptoTicker,
+    tickerMax: ANY_TICKER_MAX,
+    invalidTicker: messages.invalidCryptoTicker,
+    invalidQuantity: messages.invalidAmount,
+  },
+  OPTION: {
+    parseTicker,
+    tickerMax: STOCK_TICKER_MAX,
+    invalidTicker: messages.invalidTicker,
+    invalidQuantity: messages.invalidContracts,
+  },
+};
+
+// Only /sell autocompletes the ticker, from what the user already holds.
+const tickerOption = (sub: SlashCommandSubcommandBuilder, side: Side, type: Holdable, description: string) =>
+  sub.addStringOption((o) =>
+    o
+      .setName('ticker')
+      .setDescription(description)
+      .setRequired(true)
+      .setMaxLength(rules[type].tickerMax)
+      .setAutocomplete(side === 'SELL'),
+  );
+
+// A price-per-unit option, with the limits toPrice checks.
+const priceOption = (sub: SlashCommandSubcommandBuilder, name: string, description: string) =>
+  sub.addNumberOption((o) =>
+    o.setName(name).setDescription(description).setRequired(true).setMinValue(MIN_PRICE).setMaxValue(MAX_PRICE),
+  );
 
 // Discord number options cannot limit decimal places, so the quantity and price rules are checked here.
-function readPrice(options: TradeOptions) {
-  const price = toPrice(options.getNumber('price', true));
-  if (price === null) throw new UserError(messages.invalidPrice);
+function readTicker(options: TradeOptions, type: Holdable) {
+  const ticker = rules[type].parseTicker(options.getString('ticker', true));
+  if (!ticker) throw new UserError(rules[type].invalidTicker);
+  return ticker;
+}
+
+function readQuantity(amount: number, type: Holdable) {
+  const scaled = toScaled(amount, type);
+  if (scaled === null) throw new UserError(rules[type].invalidQuantity);
+  return scaled;
+}
+
+function readPrice(options: TradeOptions, name: string, invalid: string) {
+  const price = toPrice(options.getNumber(name, true));
+  if (price === null) throw new UserError(invalid);
   return price;
 }
 
@@ -71,97 +108,77 @@ const types: Record<string, SecurityType> = {
   stock: {
     sec_type: 'STOCK',
     options: (sub, side) =>
-      tickerQuantityPrice(
-        sub,
-        side,
-        { description: messages.options.ticker, maxLength: 6 },
-        { name: 'shares', description: messages.options.shares, min: 0.01 },
+      priceOption(
+        tickerOption(sub, side, 'STOCK', messages.options.ticker).addNumberOption((o) =>
+          o.setName('shares').setDescription(messages.options.shares).setRequired(true).setMinValue(0.01),
+        ),
+        'price',
         messages.options.price,
       ),
-    read(options) {
-      const ticker = parseTicker(options.getString('ticker', true));
-      if (!ticker) throw new UserError(messages.invalidTicker);
-      const shares = toScaled(options.getNumber('shares', true), 'STOCK');
-      if (shares === null) throw new UserError(messages.invalidShares);
-      return { sec_type: 'STOCK', ticker, shares, price: readPrice(options), ...NOT_SPLIT_OR_OPTION };
-    },
+    read: (options) => ({
+      sec_type: 'STOCK',
+      ticker: readTicker(options, 'STOCK'),
+      shares: readQuantity(options.getNumber('shares', true), 'STOCK'),
+      price: readPrice(options, 'price', messages.invalidPrice),
+      ...NOT_SPLIT_OR_OPTION,
+    }),
   },
   crypto: {
     sec_type: 'CRYPTO',
     options: (sub, side) =>
-      tickerQuantityPrice(
-        sub,
-        side,
-        { description: messages.options.cryptoTicker, maxLength: 15 },
-        { name: 'amount', description: messages.options.amount, min: 0.00000001 },
+      priceOption(
+        tickerOption(sub, side, 'CRYPTO', messages.options.cryptoTicker).addNumberOption((o) =>
+          o.setName('amount').setDescription(messages.options.amount).setRequired(true).setMinValue(1 / units.CRYPTO.scale),
+        ),
+        'price',
         messages.options.coinPrice,
       ),
-    read(options) {
-      const ticker = parseCryptoTicker(options.getString('ticker', true));
-      if (!ticker) throw new UserError(messages.invalidCryptoTicker);
-      const shares = toScaled(options.getNumber('amount', true), 'CRYPTO');
-      if (shares === null) throw new UserError(messages.invalidAmount);
-      return { sec_type: 'CRYPTO', ticker, shares, price: readPrice(options), ...NOT_SPLIT_OR_OPTION };
-    },
+    read: (options) => ({
+      sec_type: 'CRYPTO',
+      ticker: readTicker(options, 'CRYPTO'),
+      shares: readQuantity(options.getNumber('amount', true), 'CRYPTO'),
+      price: readPrice(options, 'price', messages.invalidPrice),
+      ...NOT_SPLIT_OR_OPTION,
+    }),
   },
   option: {
     sec_type: 'OPTION',
     options: (sub, side) =>
-      sub
-        .addStringOption((o) =>
-          o
-            .setName('ticker')
-            .setDescription(messages.options.optionTicker)
-            .setRequired(true)
-            .setMaxLength(6)
-            .setAutocomplete(side === 'SELL'),
+      priceOption(
+        priceOption(
+          tickerOption(sub, side, 'OPTION', messages.options.optionTicker).addStringOption((o) =>
+            o
+              .setName('right')
+              .setDescription(messages.options.right)
+              .setRequired(true)
+              .addChoices({ name: 'Call', value: 'CALL' }, { name: 'Put', value: 'PUT' }),
+          ),
+          'strike',
+          messages.options.strike,
         )
-        .addStringOption((o) =>
-          o
-            .setName('right')
-            .setDescription(messages.options.right)
-            .setRequired(true)
-            .addChoices({ name: 'Call', value: 'CALL' }, { name: 'Put', value: 'PUT' }),
-        )
-        .addNumberOption((o) =>
-          o
-            .setName('strike')
-            .setDescription(messages.options.strike)
-            .setRequired(true)
-            .setMinValue(0.00000001)
-            .setMaxValue(MAX_PRICE),
-        )
-        .addStringOption((o) =>
-          o.setName('expiry').setDescription(messages.options.expiry).setRequired(true).setMinLength(10).setMaxLength(10),
-        )
-        .addIntegerOption((o) =>
-          o.setName('contracts').setDescription(messages.options.contracts).setRequired(true).setMinValue(1),
-        )
-        .addNumberOption((o) =>
-          o
-            .setName('price')
-            .setDescription(messages.options.premium)
-            .setRequired(true)
-            .setMinValue(0.00000001)
-            .setMaxValue(MAX_PRICE),
-        ),
+          .addStringOption((o) =>
+            o.setName('expiry').setDescription(messages.options.expiry).setRequired(true).setMinLength(10).setMaxLength(10),
+          )
+          .addIntegerOption((o) =>
+            o.setName('contracts').setDescription(messages.options.contracts).setRequired(true).setMinValue(1),
+          ),
+        'price',
+        messages.options.premium,
+      ),
     read(options, side, tz, now) {
-      const ticker = parseTicker(options.getString('ticker', true));
-      if (!ticker) throw new UserError(messages.invalidTicker);
+      const ticker = readTicker(options, 'OPTION');
       // Discord only offers the two choices, but a stale client could still send anything.
       const opt_right = options.getString('right', true);
       if (opt_right !== 'CALL' && opt_right !== 'PUT') throw new UserError(messages.invalidRight);
-      const strike = toPrice(options.getNumber('strike', true));
-      if (strike === null) throw new UserError(messages.invalidStrike);
+      const strike = readPrice(options, 'strike', messages.invalidStrike);
       // Only a buy opens a position, so only a buy needs a contract that has not expired. A sell must
       // match a contract already held (replay rejects anything else), and may close one after expiry.
       const typed = options.getString('expiry', true);
       const expiry = side === 'BUY' ? parseExpiry(typed, tz, now) : parseCalendarDate(typed);
       if (expiry === null) throw new UserError(messages.invalidExpiry);
-      const shares = toScaled(options.getInteger('contracts', true), 'OPTION');
-      if (shares === null) throw new UserError(messages.invalidContracts);
-      const price = readPrice(options);
-      return { sec_type: 'OPTION', ticker, shares, price, split_from: null, split_to: null, opt_right, strike, expiry };
+      const shares = readQuantity(options.getInteger('contracts', true), 'OPTION');
+      const price = readPrice(options, 'price', messages.invalidPrice);
+      return { sec_type: 'OPTION', ticker, shares, price, ...NOT_SPLIT_OR_OPTION, opt_right, strike, expiry };
     },
   },
 };

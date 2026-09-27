@@ -8,7 +8,7 @@ import { historyLines } from '../components/historyLines.js';
 import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
 import { holdingsOf, tickerHistory } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
-import { parseLookupTicker } from '../components/validate.js';
+import { ANY_TICKER_MAX, parseLookupTicker } from '../components/validate.js';
 import { positionView } from '../components/views.js';
 import { messages } from '../strings/messages.js';
 
@@ -18,7 +18,7 @@ export const data = new SlashCommandBuilder()
   .setName('position')
   .setDescription(messages.position.description)
   .addStringOption((o) =>
-    o.setName('ticker').setDescription(messages.options.anyTicker).setRequired(true).setMaxLength(15).setAutocomplete(true),
+    o.setName('ticker').setDescription(messages.options.anyTicker).setRequired(true).setMaxLength(ANY_TICKER_MAX).setAutocomplete(true),
   )
   .addUserOption((o) => o.setName('user').setDescription(messages.options.user));
 

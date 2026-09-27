@@ -31,12 +31,12 @@ export type Position = Pick<Tx, 'ticker' | 'opt_right' | 'strike' | 'expiry'> & 
   avgCost: number;
 };
 
-// Rows with the same key belong to one position: an option is its ticker, right, strike and
-// expiry together. A split row joins its ticker's stock position.
-export const positionKey = (tx: Pick<Tx, 'sec_type' | 'ticker' | 'opt_right' | 'strike' | 'expiry'>) =>
-  tx.sec_type === 'OPTION'
-    ? `OPTION ${tx.ticker} ${tx.opt_right} ${tx.strike} ${tx.expiry}`
-    : `${tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type} ${tx.ticker}`;
+// The type of position a row belongs to: a split row joins its ticker's stock position.
+const holdable = (tx: Tx): Holdable => (tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type);
+
+// Rows with the same key belong to one position. opt_right, strike and expiry are NULL except on
+// options, so an option is its ticker, right, strike and expiry together.
+const positionKey = (tx: Tx) => `${holdable(tx)} ${tx.ticker} ${tx.opt_right} ${tx.strike} ${tx.expiry}`;
 
 // For each row, in replay order: the quantity of that row's position held just before and just
 // after it, and for a SELL the realized P/L in dollars, (sell price − average cost at that moment)
@@ -48,8 +48,6 @@ export type Replay =
   | { ok: true; positions: Position[]; history: History }
   | { ok: false; oversold: Tx };
 
-const codePoints = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-
 // Replays one user's rows, in any order, into current positions using average cost.
 export function replay(rows: Tx[]): Replay {
   const held = new Map<string, Position>();
@@ -58,7 +56,7 @@ export function replay(rows: Tx[]): Replay {
   const ordered = rows.toSorted((a, b) => a.trade_date - b.trade_date || a.created_at - b.created_at || a.id - b.id);
   for (const tx of ordered) {
     const key = positionKey(tx);
-    const sec_type = tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type;
+    const sec_type = holdable(tx);
     const { ticker, opt_right, strike, expiry } = tx;
     const pos = held.get(key) ?? { sec_type, ticker, opt_right, strike, expiry, shares: 0, avgCost: 0 };
     const before = pos.shares;
@@ -85,17 +83,8 @@ export function replay(rows: Tx[]): Replay {
     history.push({ tx, before, after: pos.shares, realized });
   }
 
-  // Alphabetical by ticker; options of one ticker by nearest expiry, then strike, then right.
-  // Plain code-point order, the same as SQLite's ORDER BY in queries/holdings.ts.
-  const positions = [...held.values()].sort(
-    (a, b) =>
-      codePoints(a.ticker, b.ticker) ||
-      codePoints(a.sec_type, b.sec_type) ||
-      a.expiry! - b.expiry! ||
-      a.strike! - b.strike! ||
-      codePoints(a.opt_right!, b.opt_right!),
-  );
-  return { ok: true, positions, history };
+  // Unordered: they are only stored, and holdingsOf (queries/holdings.ts) orders them on read.
+  return { ok: true, positions: [...held.values()], history };
 }
 
 // The id applyChange gives an inserted row until the database assigns the real one.
