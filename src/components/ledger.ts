@@ -8,6 +8,9 @@ export type Tx = {
   side: 'BUY' | 'SELL' | null;
   ticker: string;
   // Whole hundredths of a share: 1278 is 12.78 shares (migrations/2026092615_alter_shares_values.sql).
+  // The rule for every quantity field: quantities are stored scaled, prices are per whole unit.
+  // A dollar amount (quantity × price) divides by the scale once. Math on quantities alone, like
+  // average cost or a split ratio, needs no scaling, because the scale cancels out.
   shares: number | null;
   price: number | null;
   trade_date: number;
@@ -40,6 +43,8 @@ export function replay(rows: Tx[]): Replay {
       pos.shares = Math.round((pos.shares * tx.split_to!) / tx.split_from!);
       pos.avgCost = (pos.avgCost * tx.split_from!) / tx.split_to!;
     } else if (tx.side === 'BUY') {
+      // Deliberately not divided by 100: shares are in hundredths on both sides of this weighted
+      // average, so the factor cancels. Only dollar totals divide.
       pos.avgCost = (pos.shares * pos.avgCost + tx.shares! * tx.price!) / (pos.shares + tx.shares!);
       pos.shares += tx.shares!;
     } else {
