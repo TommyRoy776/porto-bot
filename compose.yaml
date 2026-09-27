@@ -7,6 +7,11 @@ services:
     container_name: porto-bot
     env_file: .env
     volumes:
+      # <where on the host>:<where in the container>. The bot keeps everything in one SQLite file,
+      # /data/porto.db inside the container (DB_PATH in .env), so /data must be kept between
+      # restarts and updates. `data` is a Docker named volume, declared at the bottom of this file.
+      # To keep the file in a folder or dataset you choose instead, put its path on the left, e.g.
+      # /mnt/tank/apps/porto-bot:/data; the bot runs as user 1000 and needs write access there.
       - data:/data
     restart: unless-stopped
 
@@ -21,8 +26,10 @@ services:
     command: npx tsx watch src/index.ts
     env_file: .env
     volumes:
+      # Live code: tsx watch reloads when these change on the host.
       - ./src:/app/src
       - ./migrations:/app/migrations
+      # A separate named volume for the dev database, so dev data never touches production's.
       - dev-data:/data
 
 volumes:
