@@ -3,6 +3,14 @@
 <!-- This becomes the "What's new" section of the release, so write it for someone who runs the
      bot, not for a reviewer: what they can now do, in a few lines or short bullets. -->
 
+## Issues
+
+<!-- Resolved: use a closing keyword (Closes/Fixes/Resolves) so GitHub closes the issue when this
+     merges to main — e.g. "Closes #14". Affected: list related issues with a plain "#N" (no
+     keyword) so they stay open but linked. Write "None." if this touches no tracked issue. -->
+
+None.
+
 ## Upgrade notes
 
 <!-- What a host has to do when they update: re-register commands, back up first, a setting that
