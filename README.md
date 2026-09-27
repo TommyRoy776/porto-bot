@@ -159,7 +159,18 @@ That's it. The bot is ready to use.
 | `/reset` (Admin Only) | Erase a member's entire history                  | `user`                      | —        |
 | `/split` (Admin Only) | Apply a stock split to everyone holding a ticker | `ticker`, `ratio`           | —        |
 
-What the options mean: `ticker` is the symbol, like `AAPL`. `shares` is a whole number. `price` is the price per share. `date` is `YYYY-MM-DD` and cannot be in the future; leave it out for today. `user` picks whose transactions to show, and defaults to you. `id` is a transaction ID such as `BS01`. `ratio` is the split, written as new:old, such as `3:2` or `1:10`.
+What the options mean:
+
+| Field    | Meaning                                                                    |
+|----------|-----------------------------------------------------------------------------|
+| `ticker` | Stock symbol, like `AAPL`                                                  |
+| `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
+| `price`  | Price per share in USD. A leading `$` is optional                          |
+| `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Leave it out for today |
+| `user`   | Whose transactions to show. Defaults to you                               |
+| `id`     | A transaction reference, like `BS01`                                       |
+| `ratio`  | The split, written as new:old, like `3:2` or `1:10`                        |
+
 
 A few things worth knowing:
 
