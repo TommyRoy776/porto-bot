@@ -149,8 +149,8 @@ That's it. The bot is ready to use.
 
 | Command               | What it does                                     | Required                    | Optional |
 |-----------------------|--------------------------------------------------|-----------------------------|----------|
-| `/buy`                | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
-| `/sell`               | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
+| `/buy stock`          | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
+| `/sell stock`         | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
 | `/portfolio`          | Show holdings and recent transactions            | —                           | `user`   |
 | `/position`           | Show every transaction for one ticker            | `ticker`                    | `user`   |
 | `/amend`              | Fix a transaction you entered wrong              | `id`                        | —        |

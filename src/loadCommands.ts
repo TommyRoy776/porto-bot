@@ -5,12 +5,13 @@ import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
   SlashCommandOptionsOnlyBuilder,
+  SlashCommandSubcommandsOnlyBuilder,
 } from 'discord.js';
 
 // Each file in commands/ exports this shape. Buttons and modals use custom IDs of the form
 // "<command name>:<arg>:<arg>", and the router hands the args to that command's handler.
 export type Command = {
-  data: SlashCommandOptionsOnlyBuilder;
+  data: SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
   execute(interaction: ChatInputCommandInteraction): Promise<unknown>;
   autocomplete?(interaction: AutocompleteInteraction): Promise<unknown>;
   button?(interaction: ButtonInteraction, args: string[]): Promise<unknown>;
