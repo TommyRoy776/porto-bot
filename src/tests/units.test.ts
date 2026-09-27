@@ -55,3 +55,11 @@ test('an option contract is a whole unit, and its dollar value is 100 × contrac
   assert.equal(value('OPTION', 2, 3.2), 640);
   assert.equal(formatQuantity('OPTION', 2), '2');
 });
+
+test('whole-unit quantities (option contracts) parse and print without decimals, trailing zeros intact', () => {
+  assert.equal(parseQuantity('20', 'OPTION'), 20);
+  assert.equal(parseQuantity('1.5', 'OPTION'), null);
+  assert.equal(quantityText(20, 'OPTION'), '20');
+  assert.equal(quantityText(100, 'OPTION'), '100');
+  assert.equal(quantityText(10_000, 'STOCK'), '100');
+});

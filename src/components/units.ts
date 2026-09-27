@@ -38,13 +38,18 @@ export function toScaled(amount: number, type: Holdable) {
 // A typed quantity from the /amend modal, like "12.78", by the same rules as toScaled.
 export function parseQuantity(input: string, type: Holdable) {
   const trimmed = input.trim();
-  const pattern = new RegExp(`^\\d+(\\.\\d{1,${units[type].decimals}})?$`);
+  const { decimals } = units[type];
+  const pattern = decimals ? new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`) : /^\d+$/;
   return pattern.test(trimmed) ? toScaled(Number(trimmed), type) : null;
 }
 
 // Plain decimal text for a stored quantity, which parseQuantity reads back: 34000 CRYPTO → "0.00034".
-export const quantityText = (quantity: number, type: Holdable) =>
-  (quantity / units[type].scale).toFixed(units[type].decimals).replace(/\.?0+$/, '');
+// Only text with a decimal point loses trailing zeros, so 20 contracts stay "20".
+export function quantityText(quantity: number, type: Holdable) {
+  const { scale, decimals } = units[type];
+  const fixed = (quantity / scale).toFixed(decimals);
+  return decimals ? fixed.replace(/\.?0+$/, '') : fixed;
+}
 
 // Dollars for a stored quantity at a per-unit price.
 export const value = (type: Holdable, quantity: number, price: number) =>
