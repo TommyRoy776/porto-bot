@@ -248,6 +248,16 @@ has been entered.
 
 ---
 
+## Reporting issues and requesting features
+
+Found a bug, or want to see something added? Open an issue on the [GitHub Issues tab](https://github.com/aer35/porto-bot/issues).
+
+- **Bugs**: include reproduction steps, screenshots, and the relevant lines from `docker compose logs porto-bot`.
+- **Feature requests**: describe what you want and why — the more specific, the better.
+- Tag the issue appropriately (e.g. `bug` or `enhancement`) so it's easy to triage.
+
+---
+
 ## Building the image yourself
 
 Optional. If you would rather build from source than use the prebuilt image:
