@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { logTx } from '../components/log.js';
 import { commitChange } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
-import { parseDate, parseRatio, parseTicker } from '../components/validate.js';
+import { parseDate, parseRatio, parseTicker, STOCK_TICKER_MAX } from '../components/validate.js';
 import { holdersOf } from '../queries/holdings.js';
 import { messages } from '../strings/messages.js';
 
@@ -12,7 +12,7 @@ export const data = new SlashCommandBuilder()
   .setDescription(messages.split.description)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addStringOption((o) =>
-    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6),
+    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(STOCK_TICKER_MAX),
   )
   .addStringOption((o) =>
     o.setName('ratio').setDescription(messages.split.ratioOption).setRequired(true).setMaxLength(11),

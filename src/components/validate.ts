@@ -1,5 +1,10 @@
 // Parsers for user input. Each returns the normalized value, or null if the input is invalid.
 
+// Longest ticker each parser accepts, for Discord's max_length on the matching options: a stock
+// ticker (parseTicker), and anything a lookup or crypto ticker can be (BTC-USD, up to 15).
+export const STOCK_TICKER_MAX = 6;
+export const ANY_TICKER_MAX = 15;
+
 export function parseTicker(input: string) {
   const ticker = input.trim().toUpperCase();
   return /^[A-Z.]{1,6}$/.test(ticker) ? ticker : null;
@@ -55,6 +60,8 @@ export function parseRatio(input: string) {
 
 // Highest price per unit accepted. Well above any real share or coin, low enough to catch a typo.
 export const MAX_PRICE = 10_000_000;
+// Lowest, the smallest amount 8 decimals can hold.
+export const MIN_PRICE = 0.00000001;
 
 // A price per unit from a Discord number option: above 0, at most MAX_PRICE, at most 8 decimals
 // (enough for a coin priced below a cent). toFixed(8) round-trips exactly when there are 8 or

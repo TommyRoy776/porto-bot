@@ -6,9 +6,7 @@ import { holdingsOf } from '../queries/holdings.js';
 // any ticker can still be typed.
 export async function tickerAutocomplete(interaction: AutocompleteInteraction, userId: string, secType?: Holdable) {
   const typed = interaction.options.getFocused().toUpperCase();
-  const tickers = holdingsOf(userId, secType)
-    .map((p) => p.ticker)
-    .filter((t, i, all) => t.startsWith(typed) && all.indexOf(t) === i);
+  const tickers = [...new Set(holdingsOf(userId, secType).map((p) => p.ticker))].filter((t) => t.startsWith(typed));
   // Discord allows at most 25 choices.
   await interaction.respond(tickers.slice(0, 25).map((t) => ({ name: t, value: t })));
 }

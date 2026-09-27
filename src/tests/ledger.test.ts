@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyChange, replay, type Tx } from '../components/ledger.js';
+import { applyChange, replay, type Position, type Tx } from '../components/ledger.js';
 
 let nextId = 1;
 const DAY = 86_400;
@@ -31,11 +31,15 @@ const split = (to: number, from: number, day = 1, fields: Partial<Tx> = {}) =>
 
 const NOT_OPTION = { opt_right: null, strike: null, expiry: null };
 
+// replay() leaves positions unordered (holdingsOf orders them on read); sort for stable comparisons.
+const sorted = (positions: Position[]) =>
+  positions.toSorted((a, b) => `${a.ticker} ${a.sec_type}`.localeCompare(`${b.ticker} ${b.sec_type}`));
+
 // Positions without sec_type, which every stock-only test here would repeat.
 function positions(rows: Tx[]) {
   const result = replay(rows);
   assert.ok(result.ok, 'expected replay to succeed');
-  return result.positions.map(({ ticker, shares, avgCost }) => ({ ticker, shares, avgCost }));
+  return sorted(result.positions).map(({ ticker, shares, avgCost }) => ({ ticker, shares, avgCost }));
 }
 
 test('no rows means no positions', () => {
@@ -59,7 +63,7 @@ test('selling to zero removes the position, and a later buy starts a fresh avera
   ]);
 });
 
-test('positions are tracked per ticker and sorted by ticker', () => {
+test('positions are tracked per ticker', () => {
   assert.deepEqual(positions([buy(1, 10, 1, { ticker: 'MSFT' }), buy(2, 20)]), [
     { ticker: 'AAPL', shares: 2, avgCost: 20 },
     { ticker: 'MSFT', shares: 1, avgCost: 10 },
@@ -176,7 +180,7 @@ test('a crypto sell cannot go below zero', () => {
 test('stock and crypto positions are separate even under the same ticker, and splits only touch stock', () => {
   const result = replay([buy(100, 10, 1), buy(100, 10, 1, { sec_type: 'CRYPTO' }), split(2, 1, 2)]);
   assert.ok(result.ok);
-  assert.deepEqual(result.positions, [
+  assert.deepEqual(sorted(result.positions), [
     { ...NOT_OPTION, sec_type: 'CRYPTO', ticker: 'AAPL', shares: 100, avgCost: 10 },
     { ...NOT_OPTION, sec_type: 'STOCK', ticker: 'AAPL', shares: 200, avgCost: 5 },
   ]);
@@ -195,12 +199,13 @@ test('options are separate positions per right, strike and expiry, and blend ave
   ]);
   assert.ok(result.ok);
   assert.deepEqual(
-    result.positions.map((p) => [p.sec_type, p.opt_right, p.strike, p.expiry, p.shares, p.avgCost]),
+    result.positions.map((p) => [p.sec_type, p.opt_right, p.strike, p.expiry, p.shares, p.avgCost]).sort(),
     [
-      ['OPTION', 'CALL', 150, 100 * DAY, 3, 4],
-      ['OPTION', 'PUT', 150, 100 * DAY, 1, 9],
-      ['OPTION', 'CALL', 160, 100 * DAY, 1, 9],
+      // .sort() compares as text, so expiry 17280000 (day 200) sorts before 8640000 (day 100).
       ['OPTION', 'CALL', 150, 200 * DAY, 1, 9],
+      ['OPTION', 'CALL', 150, 100 * DAY, 3, 4],
+      ['OPTION', 'CALL', 160, 100 * DAY, 1, 9],
+      ['OPTION', 'PUT', 150, 100 * DAY, 1, 9],
       ['STOCK', null, null, null, 5, 1],
     ],
   );

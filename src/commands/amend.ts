@@ -15,7 +15,8 @@ import { realizedOf } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { parseRef } from '../components/ref.js';
 import { parseQuantity, quantityText } from '../components/units.js';
-import { parseCryptoTicker, parseDate, parsePrice, parseTicker, priceText, toDateString } from '../components/validate.js';
+import { rules } from '../components/trade.js';
+import { parseDate, parsePrice, priceText, toDateString } from '../components/validate.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
@@ -37,32 +38,13 @@ const field = (id: string, label: string, value: string, min: number, max: numbe
         .setMaxLength(max),
     );
 
-// What differs between editing each type of row: how the ticker is checked, the label
-// and length limits of the quantity field, and the error shown for each.
-const editable = {
-  STOCK: {
-    parseTicker,
-    tickerMax: 6,
-    invalidTicker: messages.invalidTicker,
-    quantityLabel: messages.amend.fields.shares,
-    invalidQuantity: messages.invalidShares,
-  },
-  CRYPTO: {
-    parseTicker: parseCryptoTicker,
-    tickerMax: 15,
-    invalidTicker: messages.invalidCryptoTicker,
-    quantityLabel: messages.amend.fields.amount,
-    invalidQuantity: messages.invalidAmount,
-  },
-  // A modal holds at most 5 fields, so an option's right, strike and expiry are not editable here;
-  // a wrong contract is fixed with /delete and a new /buy option.
-  OPTION: {
-    parseTicker,
-    tickerMax: 6,
-    invalidTicker: messages.invalidTicker,
-    quantityLabel: messages.amend.fields.contracts,
-    invalidQuantity: messages.invalidContracts,
-  },
+// The label of the quantity field for each type of row. A modal holds at most 5 fields, so an
+// option's right, strike and expiry are not editable here; a wrong contract is fixed with /delete
+// and a new /buy option.
+const quantityLabel = {
+  STOCK: messages.amend.fields.shares,
+  CRYPTO: messages.amend.fields.amount,
+  OPTION: messages.amend.fields.contracts,
 };
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -73,16 +55,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (row.sec_type === 'SPLIT') throw new UserError(messages.amend.split);
 
   const labels = messages.amend.fields;
-  const type = editable[row.sec_type];
   await interaction.showModal(
     new ModalBuilder()
       .setCustomId(`amend:${row.ref}`)
       .setTitle(messages.amend.title(row.ref))
       .addLabelComponents(
-        field('ticker', labels.ticker, row.ticker, 1, type.tickerMax),
+        field('ticker', labels.ticker, row.ticker, 1, rules[row.sec_type].tickerMax),
         field('side', labels.side, row.side!, 3, 4),
         // Stored scaled; shown as the decimal the user typed, which parseQuantity reads back.
-        field('shares', type.quantityLabel, quantityText(row.shares!, row.sec_type), 1, 20),
+        field('shares', quantityLabel[row.sec_type], quantityText(row.shares!, row.sec_type), 1, 20),
         field('price', labels.price, priceText(row.price!), 1, 20),
         field('date', labels.date, toDateString(row.trade_date), 10, 10),
       ),
@@ -94,7 +75,7 @@ export async function modal(interaction: ModalSubmitInteraction, [ref]: string[]
   // row may have been deleted while the modal was open.
   const row = ownRow(ref, interaction.user.id);
   if (row.sec_type === 'SPLIT') throw new UserError(messages.amend.split);
-  const type = editable[row.sec_type];
+  const type = rules[row.sec_type];
   const value = (name: string) => interaction.fields.getTextInputValue(name);
   const ticker = type.parseTicker(value('ticker'));
   if (!ticker) throw new UserError(type.invalidTicker);

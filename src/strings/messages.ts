@@ -1,6 +1,6 @@
 import { date, money, total } from '../components/format.js';
 import type { Position, Tx } from '../components/ledger.js';
-import { formatQuantity, value } from '../components/units.js';
+import { formatQuantity, value, type Holdable } from '../components/units.js';
 import { toDateString } from '../components/validate.js';
 
 // Every transaction renders the same way, in two lines:
@@ -19,14 +19,16 @@ import { toDateString } from '../components/validate.js';
 const quantityUnit = { STOCK: 'shares', CRYPTO: 'coins', OPTION: 'contracts' };
 
 // What one unit is called in a transaction line: an option's unit is its right, CALL or PUT.
-const unit = (tx: Tx) => (tx.sec_type === 'OPTION' ? tx.opt_right : tx.sec_type === 'CRYPTO' ? 'coins' : 'shares');
+const unit = (tx: Tx) => (tx.sec_type === 'OPTION' ? tx.opt_right : quantityUnit[tx.sec_type as Holdable]);
+
+type Contract = Pick<Tx, 'sec_type' | 'strike' | 'expiry'>;
+
+// An option's strike and expiry, after its ticker: " $150.00 2026-01-16". Empty for anything else.
+const contract = (p: Contract) => (p.sec_type === 'OPTION' ? ` ${money(p.strike!)} ${toDateString(p.expiry!)}` : '');
 
 // A position's name: the ticker, and for an option the contract, e.g. "AAPL CALL $150.00 2026-01-16".
-const positionLabel = (p: Pick<Tx, 'sec_type' | 'ticker' | 'opt_right' | 'strike' | 'expiry'>) =>
-  p.sec_type === 'OPTION' ? `${p.ticker} ${p.opt_right} ${money(p.strike!)} ${toDateString(p.expiry!)}` : p.ticker;
-
-// An option's strike and expiry, after its ticker in a transaction line.
-const contract = (tx: Tx) => (tx.sec_type === 'OPTION' ? ` ${money(tx.strike!)} ${toDateString(tx.expiry!)}` : '');
+const positionLabel = (p: Contract & Pick<Tx, 'ticker' | 'opt_right'>) =>
+  p.sec_type === 'OPTION' ? `${p.ticker} ${p.opt_right}${contract(p)}` : p.ticker;
 
 const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'

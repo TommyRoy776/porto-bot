@@ -36,9 +36,11 @@ test('holdings and history match a full replay after buy, sell, amend, delete an
   commitChange(u, { delete: sold });
 
   const expected = replayed(u);
-  // Rows read straight from node:sqlite have a null prototype; compare contents only.
+  // Rows read straight from node:sqlite have a null prototype; compare contents only. replay()
+  // leaves positions unordered, and holdingsOf sorts by ticker.
   const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
-  assert.deepEqual(holdingsOf(u), expected.positions);
+  const byTicker = expected.positions.toSorted((a, b) => a.ticker.localeCompare(b.ticker));
+  assert.deepEqual(plain(holdingsOf(u)), plain(byTicker));
   assert.deepEqual(plain(recentHistory(u, 100)), plain(expected.history.toReversed()));
 });
 

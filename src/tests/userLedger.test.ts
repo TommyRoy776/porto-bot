@@ -5,7 +5,9 @@ import type { NewTx } from '../components/ledger.js';
 // config.ts validates env at import, so set it before loading anything that opens the database.
 Object.assign(process.env, { DISCORD_TOKEN: 't', DISCORD_CLIENT_ID: 'c', DISCORD_GUILD_ID: 'g', DB_PATH: ':memory:' });
 const { commitChange } = await import('../components/userLedger.js');
-const { holdingsOf, realizedOf } = await import('../queries/holdings.js');
+const { holdingsOf: storedHoldings, realizedOf } = await import('../queries/holdings.js');
+// node:sqlite rows have a null prototype; copy them so they compare equal to plain literals.
+const holdingsOf = (userId: string) => storedHoldings(userId).map((p) => ({ ...p }));
 const { userRows } = await import('../queries/transactions.js');
 const { UserError } = await import('../components/userError.js');
 
