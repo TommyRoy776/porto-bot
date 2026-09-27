@@ -13,13 +13,14 @@ export const getRow = (ref: string) =>
   db.prepare('SELECT * FROM transactions WHERE ref = ?').get(ref) as Tx | undefined;
 
 // The three-letter reference prefix for a row's type, e.g. BSS for a stock buy. ref_prefixes
-// holds one row per type keyed by the same columns as transactions; `side IS ?` matches the NULL
-// side of a split. A missing prefix is a bug (a new type without its migration row), not user error.
-function refPrefix(tx: Pick<Tx, 'sec_type' | 'side'>) {
-  const row = db.prepare('SELECT prefix FROM ref_prefixes WHERE sec_type = ? AND side IS ?').get(tx.sec_type, tx.side) as
-    | { prefix: string }
-    | undefined;
-  if (!row) throw new Error(`No ref_prefixes row for ${tx.sec_type} ${tx.side}`);
+// holds one row per type keyed by the same columns as transactions; IS matches the NULL side of a
+// split and the NULL opt_right of everything but options. A missing prefix is a bug (a new type
+// without its migration row), not user error.
+function refPrefix(tx: Pick<Tx, 'sec_type' | 'side' | 'opt_right'>) {
+  const row = db
+    .prepare('SELECT prefix FROM ref_prefixes WHERE sec_type = ? AND side IS ? AND opt_right IS ?')
+    .get(tx.sec_type, tx.side, tx.opt_right) as { prefix: string } | undefined;
+  if (!row) throw new Error(`No ref_prefixes row for ${tx.sec_type} ${tx.side} ${tx.opt_right}`);
   return row.prefix;
 }
 
@@ -40,8 +41,11 @@ function nextRef(prefix: string) {
 export const insertRow = (tx: NewTx) =>
   db
     .prepare(
-      `INSERT INTO transactions (user_id, sec_type, side, ticker, shares, price, trade_date, split_from, split_to, ref)
-       VALUES (:user_id, :sec_type, :side, :ticker, :shares, :price, :trade_date, :split_from, :split_to, :ref)
+      `INSERT INTO transactions
+         (user_id, sec_type, side, ticker, shares, price, trade_date, split_from, split_to, opt_right, strike, expiry, ref)
+       VALUES
+         (:user_id, :sec_type, :side, :ticker, :shares, :price, :trade_date, :split_from, :split_to, :opt_right, :strike,
+          :expiry, :ref)
        RETURNING *`,
     )
     .get({ ...tx, ref: nextRef(refPrefix(tx)) }) as Tx;
@@ -57,7 +61,8 @@ export function updateRow({ user_id, created_at, ...row }: Tx) {
     .prepare(
       `UPDATE transactions
        SET side = :side, sec_type = :sec_type, ticker = :ticker, shares = :shares, price = :price, trade_date = :trade_date,
-           split_from = :split_from, split_to = :split_to, ref = :ref
+           split_from = :split_from, split_to = :split_to, opt_right = :opt_right, strike = :strike, expiry = :expiry,
+           ref = :ref
        WHERE id = :id
        RETURNING *`,
     )

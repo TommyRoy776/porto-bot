@@ -10,13 +10,14 @@ const { UserError } = await import('../components/userError.js');
 
 const trade = (user_id: string, side: 'BUY' | 'SELL', shares: number): NewTx => ({
   user_id, sec_type: 'STOCK', side, ticker: 'AAPL', shares, price: 10, trade_date: 86_400, split_from: null, split_to: null,
+  opt_right: null, strike: null, expiry: null,
 });
 
 test('commitChange writes valid changes and returns the stored row', () => {
   const stored = commitChange('a', { insert: trade('a', 'BUY', 10) })!;
   assert.ok(stored.id > 0 && stored.created_at > 0);
   assert.equal(commitChange('a', { update: { ...stored, shares: 12 } })!.shares, 12);
-  assert.deepEqual(ledgerOf('a').positions, [{ sec_type: 'STOCK', ticker: 'AAPL', shares: 12, avgCost: 10 }]);
+  assert.deepEqual(ledgerOf('a').positions, [{ sec_type: 'STOCK', ticker: 'AAPL', shares: 12, avgCost: 10, opt_right: null, strike: null, expiry: null }]);
 });
 
 test('commitChange rejects a change that would go negative and writes nothing', () => {
@@ -61,7 +62,18 @@ test('amending a buy into a sell gives it a sell reference', () => {
 test('a split gets an XSS reference from the ref_prefixes table', () => {
   commitChange('x', { insert: trade('x', 'BUY', 10) });
   const split = commitChange('x', {
-    insert: { user_id: 'x', sec_type: 'SPLIT', side: null, ticker: 'AAPL', shares: null, price: null, trade_date: 86_400, split_from: 1, split_to: 2 },
+    insert: { user_id: 'x', sec_type: 'SPLIT', side: null, ticker: 'AAPL', shares: null, price: null, trade_date: 86_400, split_from: 1, split_to: 2,
+      opt_right: null, strike: null, expiry: null },
   })!;
   assert.match(split.ref, /^XSS\d\d+$/);
+});
+
+test('option trades get BOC/BOP/SOC/SOP references by side and right', () => {
+  const option = (side: 'BUY' | 'SELL', opt_right: 'CALL' | 'PUT'): NewTx => ({
+    ...trade('o', side, 1), sec_type: 'OPTION', opt_right, strike: 150, expiry: 10 * 86_400,
+  });
+  const refs = [option('BUY', 'CALL'), option('BUY', 'PUT'), option('SELL', 'CALL'), option('SELL', 'PUT')].map(
+    (tx) => commitChange('o', { insert: tx })!.ref.slice(0, 3),
+  );
+  assert.deepEqual(refs, ['BOC', 'BOP', 'SOC', 'SOP']);
 });

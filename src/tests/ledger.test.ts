@@ -17,6 +17,9 @@ const row = (fields: Partial<Tx>): Tx => ({
   created_at: 0,
   split_from: null,
   split_to: null,
+  opt_right: null,
+  strike: null,
+  expiry: null,
   ...fields,
 });
 const buy = (shares: number, price: number, day = 1, fields: Partial<Tx> = {}) =>
@@ -25,6 +28,8 @@ const sell = (shares: number, price: number, day = 1, fields: Partial<Tx> = {}) 
   row({ side: 'SELL', shares, price, trade_date: day * DAY, ...fields });
 const split = (to: number, from: number, day = 1, fields: Partial<Tx> = {}) =>
   row({ sec_type: 'SPLIT', split_to: to, split_from: from, trade_date: day * DAY, ...fields });
+
+const NOT_OPTION = { opt_right: null, strike: null, expiry: null };
 
 // Positions without sec_type, which every stock-only test here would repeat.
 function positions(rows: Tx[]) {
@@ -159,7 +164,7 @@ test('crypto blends average cost at its own scale, with fractional amounts', () 
   // 0.00034 BTC at $100,000, then 0.00066 BTC at $50,000: 0.001 BTC at $67,000.
   const result = replay([buy(34_000, 100_000, 1, coin), buy(66_000, 50_000, 2, coin), sell(50_000, 1, 3, coin)]);
   assert.ok(result.ok);
-  assert.deepEqual(result.positions, [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 50_000, avgCost: 67_000 }]);
+  assert.deepEqual(result.positions, [{ ...NOT_OPTION, sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 50_000, avgCost: 67_000 }]);
 });
 
 test('a crypto sell cannot go below zero', () => {
@@ -172,7 +177,37 @@ test('stock and crypto positions are separate even under the same ticker, and sp
   const result = replay([buy(100, 10, 1), buy(100, 10, 1, { sec_type: 'CRYPTO' }), split(2, 1, 2)]);
   assert.ok(result.ok);
   assert.deepEqual(result.positions, [
-    { sec_type: 'CRYPTO', ticker: 'AAPL', shares: 100, avgCost: 10 },
-    { sec_type: 'STOCK', ticker: 'AAPL', shares: 200, avgCost: 5 },
+    { ...NOT_OPTION, sec_type: 'CRYPTO', ticker: 'AAPL', shares: 100, avgCost: 10 },
+    { ...NOT_OPTION, sec_type: 'STOCK', ticker: 'AAPL', shares: 200, avgCost: 5 },
   ]);
+});
+
+test('options are separate positions per right, strike and expiry, and blend average cost within one', () => {
+  const call150 = { sec_type: 'OPTION' as const, opt_right: 'CALL' as const, strike: 150, expiry: 100 * DAY };
+  const result = replay([
+    buy(2, 3, 1, call150),
+    buy(2, 5, 2, call150),
+    buy(1, 9, 2, { ...call150, strike: 160 }),
+    buy(1, 9, 2, { ...call150, expiry: 200 * DAY }),
+    buy(1, 9, 2, { ...call150, opt_right: 'PUT' }),
+    sell(1, 7, 3, call150),
+    buy(5, 1, 3), // AAPL stock is its own position too
+  ]);
+  assert.ok(result.ok);
+  assert.deepEqual(
+    result.positions.map((p) => [p.sec_type, p.opt_right, p.strike, p.expiry, p.shares, p.avgCost]),
+    [
+      ['OPTION', 'CALL', 150, 100 * DAY, 3, 4],
+      ['OPTION', 'PUT', 150, 100 * DAY, 1, 9],
+      ['OPTION', 'CALL', 160, 100 * DAY, 1, 9],
+      ['OPTION', 'CALL', 150, 200 * DAY, 1, 9],
+      ['STOCK', null, null, null, 5, 1],
+    ],
+  );
+});
+
+test('selling an option contract you do not hold at that strike is rejected', () => {
+  const call = { sec_type: 'OPTION' as const, opt_right: 'CALL' as const, strike: 150, expiry: 100 * DAY };
+  const bad = sell(1, 1, 2, { ...call, strike: 155 });
+  assert.deepEqual(replay([buy(1, 1, 1, call), bad]), { ok: false, oversold: bad });
 });

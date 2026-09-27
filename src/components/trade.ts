@@ -12,7 +12,7 @@ import { tickerAutocomplete } from './tickerAutocomplete.js';
 import { commitChange } from './userLedger.js';
 import { UserError } from './userError.js';
 import { toScaled, type Holdable } from './units.js';
-import { MAX_PRICE, parseCryptoTicker, parseDate, parseTicker, toPrice } from './validate.js';
+import { MAX_PRICE, parseCryptoTicker, parseDate, parseExpiry, parseTicker, toPrice } from './validate.js';
 
 type Side = 'BUY' | 'SELL';
 
@@ -28,8 +28,11 @@ type TypeFields = Omit<NewTx, 'user_id' | 'side' | 'trade_date'>;
 type SecurityType = {
   sec_type: Holdable;
   options(sub: SlashCommandSubcommandBuilder, side: Side): SlashCommandSubcommandBuilder;
-  read(options: TradeOptions): TypeFields;
+  read(options: TradeOptions, tz: string, now: Date): TypeFields;
 };
+
+// The columns only splits and options use.
+const NOT_SPLIT_OR_OPTION = { split_from: null, split_to: null, opt_right: null, strike: null, expiry: null };
 
 // Ticker, quantity and price options, shared by stock and crypto. Only /sell autocompletes the
 // ticker, from what the user already holds.
@@ -79,7 +82,7 @@ const types: Record<string, SecurityType> = {
       if (!ticker) throw new UserError(messages.invalidTicker);
       const shares = toScaled(options.getNumber('shares', true), 'STOCK');
       if (shares === null) throw new UserError(messages.invalidShares);
-      return { sec_type: 'STOCK', ticker, shares, price: readPrice(options), split_from: null, split_to: null };
+      return { sec_type: 'STOCK', ticker, shares, price: readPrice(options), ...NOT_SPLIT_OR_OPTION };
     },
   },
   crypto: {
@@ -97,14 +100,71 @@ const types: Record<string, SecurityType> = {
       if (!ticker) throw new UserError(messages.invalidCryptoTicker);
       const shares = toScaled(options.getNumber('amount', true), 'CRYPTO');
       if (shares === null) throw new UserError(messages.invalidAmount);
-      return { sec_type: 'CRYPTO', ticker, shares, price: readPrice(options), split_from: null, split_to: null };
+      return { sec_type: 'CRYPTO', ticker, shares, price: readPrice(options), ...NOT_SPLIT_OR_OPTION };
+    },
+  },
+  option: {
+    sec_type: 'OPTION',
+    options: (sub, side) =>
+      sub
+        .addStringOption((o) =>
+          o
+            .setName('ticker')
+            .setDescription(messages.options.optionTicker)
+            .setRequired(true)
+            .setMaxLength(6)
+            .setAutocomplete(side === 'SELL'),
+        )
+        .addStringOption((o) =>
+          o
+            .setName('right')
+            .setDescription(messages.options.right)
+            .setRequired(true)
+            .addChoices({ name: 'Call', value: 'CALL' }, { name: 'Put', value: 'PUT' }),
+        )
+        .addNumberOption((o) =>
+          o
+            .setName('strike')
+            .setDescription(messages.options.strike)
+            .setRequired(true)
+            .setMinValue(0.00000001)
+            .setMaxValue(MAX_PRICE),
+        )
+        .addStringOption((o) =>
+          o.setName('expiry').setDescription(messages.options.expiry).setRequired(true).setMinLength(10).setMaxLength(10),
+        )
+        .addIntegerOption((o) =>
+          o.setName('contracts').setDescription(messages.options.contracts).setRequired(true).setMinValue(1),
+        )
+        .addNumberOption((o) =>
+          o
+            .setName('price')
+            .setDescription(messages.options.premium)
+            .setRequired(true)
+            .setMinValue(0.00000001)
+            .setMaxValue(MAX_PRICE),
+        ),
+    read(options, tz, now) {
+      const ticker = parseTicker(options.getString('ticker', true));
+      if (!ticker) throw new UserError(messages.invalidTicker);
+      // Discord only offers the two choices, but a stale client could still send anything.
+      const opt_right = options.getString('right', true);
+      if (opt_right !== 'CALL' && opt_right !== 'PUT') throw new UserError(messages.invalidRight);
+      const strike = toPrice(options.getNumber('strike', true));
+      if (strike === null) throw new UserError(messages.invalidStrike);
+      const expiry = parseExpiry(options.getString('expiry', true), tz, now);
+      if (expiry === null) throw new UserError(messages.invalidExpiry);
+      const shares = toScaled(options.getInteger('contracts', true), 'OPTION');
+      if (shares === null) throw new UserError(messages.invalidContracts);
+      const price = readPrice(options);
+      return { sec_type: 'OPTION', ticker, shares, price, split_from: null, split_to: null, opt_right, strike, expiry };
     },
   },
 };
 
 // The row a /buy or /sell subcommand would insert, validated. `now` is only overridden by tests.
 export function tradeRow(user_id: string, side: Side, type: string, options: TradeOptions, tz: string, now = new Date()): NewTx {
-  const fields = types[type].read(options);
+  const fields = types[type].read(options, tz, now);
   const trade_date = parseDate(options.getString('date') ?? undefined, tz, now);
   if (trade_date === null) throw new UserError(messages.invalidDate);
   return { user_id, side, trade_date, ...fields };

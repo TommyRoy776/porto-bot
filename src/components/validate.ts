@@ -33,6 +33,16 @@ export function parseDate(input: string | undefined, tz: string, now = new Date(
   return ms / 1000;
 }
 
+// Option expiry as YYYY-MM-DD, today or later in `tz` (the opposite of parseDate), to unix seconds
+// at 12:00 UTC.
+export function parseExpiry(input: string, tz: string, now = new Date()) {
+  const date = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < todayIn(tz, now)) return null;
+  const ms = Date.parse(`${date}T12:00:00Z`);
+  if (Number.isNaN(ms) || toDateString(ms / 1000) !== date) return null;
+  return ms / 1000;
+}
+
 export const toDateString = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 10);
 
 // "X:Y" means X new shares for every Y old: 3:2 forward, 1:10 reverse.

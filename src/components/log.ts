@@ -13,7 +13,9 @@ export function logRow(event: string, tx: Tx) {
   const detail =
     tx.sec_type === 'SPLIT'
       ? `${tx.ref} SPLIT ${tx.split_to}:${tx.split_from} ${tx.ticker} date=${toDateString(tx.trade_date)}`
-      : `${tx.ref} ${tx.sec_type} ${tx.side} ${quantityText(tx.shares!, tx.sec_type)} ${tx.ticker} @ ${tx.price} ` +
+      : `${tx.ref} ${tx.sec_type} ${tx.side} ${quantityText(tx.shares!, tx.sec_type)} ${tx.ticker}` +
+        (tx.sec_type === 'OPTION' ? ` ${tx.opt_right} ${tx.strike} ${toDateString(tx.expiry!)}` : '') +
+        ` @ ${tx.price} ` +
         `total=${value(tx.sec_type, tx.shares!, tx.price!).toFixed(2)} date=${toDateString(tx.trade_date)}`;
   logTx(event, tx.user_id, detail);
   return tx;

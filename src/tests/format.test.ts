@@ -27,6 +27,7 @@ test('every transaction renders as an action line then a metadata line', () => {
   const tx = {
     id: 1, ref: 'BSS07', user_id: 'u', sec_type: 'STOCK' as const, side: 'BUY' as const, ticker: 'AAPL',
     shares: 1278, price: 150, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
+    opt_right: null, strike: null, expiry: null,
   };
   assert.equal(
     messages.txLine(tx),
@@ -35,7 +36,7 @@ test('every transaction renders as an action line then a metadata line', () => {
 });
 
 test('a holdings row shows decimal shares and a cost basis in dollars', () => {
-  assert.deepEqual(holdingRow({ sec_type: 'STOCK', ticker: 'AAPL', shares: 1250, avgCost: 10 }), ['AAPL', '12.5', '$10.00', '$125.00']);
+  assert.deepEqual(holdingRow({ sec_type: 'STOCK', ticker: 'AAPL', shares: 1250, avgCost: 10, opt_right: null, strike: null, expiry: null }), ['AAPL', '12.5', '$10.00', '$125.00']);
 });
 
 test('a transaction list puts a separator between entries', () => {
@@ -43,7 +44,10 @@ test('a transaction list puts a separator between entries', () => {
 });
 
 test('historyLines shows share counts before and after a split', () => {
-  const base = { user_id: 'u', created_at: 0, ref: 'XX01', price: null, shares: null, side: null, split_from: null, split_to: null };
+  const base = {
+    user_id: 'u', created_at: 0, ref: 'XX01', price: null, shares: null, side: null, split_from: null, split_to: null,
+    opt_right: null, strike: null, expiry: null,
+  };
   const rows: Tx[] = [
     { ...base, id: 1, sec_type: 'STOCK', side: 'BUY', ticker: 'AAPL', shares: 500, price: 10, trade_date: 1 },
     { ...base, id: 2, sec_type: 'STOCK', side: 'BUY', ticker: 'MSFT', shares: 100, price: 10, trade_date: 2 },
@@ -58,9 +62,31 @@ test('a crypto transaction shows coins, truncated to 3 decimals, with the total 
   const tx = {
     id: 1, ref: 'BCC01', user_id: 'u', sec_type: 'CRYPTO' as const, side: 'BUY' as const, ticker: 'BTC-USD',
     shares: 123_456_789, price: 100_000, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
+    opt_right: null, strike: null, expiry: null,
   };
   assert.equal(
     messages.txLine(tx),
     '**BUY** 1.234 × coins of **BTC-USD** @ $100,000.00\n`BCC01` · total $123,456.79 · <t:1767268800:D>',
+  );
+});
+
+const JAN_16 = Date.parse('2026-01-16T12:00:00Z') / 1000;
+
+test('an option transaction names the contract, and its total is 100 × contracts × price', () => {
+  const tx = {
+    id: 1, ref: 'BOC01', user_id: 'u', sec_type: 'OPTION' as const, side: 'BUY' as const, ticker: 'AAPL',
+    shares: 2, price: 3.2, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
+    opt_right: 'CALL' as const, strike: 150, expiry: JAN_16,
+  };
+  assert.equal(
+    messages.txLine(tx),
+    '**BUY** 2 × CALL of **AAPL** $150.00 2026-01-16 @ $3.20\n`BOC01` · total $640.00 · <t:1767268800:D>',
+  );
+});
+
+test('an option holdings row names the contract and multiplies the cost basis by 100', () => {
+  assert.deepEqual(
+    holdingRow({ sec_type: 'OPTION', ticker: 'AAPL', shares: 2, avgCost: 3.2, opt_right: 'PUT', strike: 150, expiry: JAN_16 }),
+    ['AAPL PUT $150.00 2026-01-16', '2', '$3.20', '$640.00'],
   );
 });

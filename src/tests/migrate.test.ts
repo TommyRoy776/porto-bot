@@ -78,7 +78,7 @@ test('the real migrations apply to a fresh database', () => {
   const columns = db.prepare('SELECT name FROM pragma_table_info(?)').all('transactions').map((r) => r.name);
   assert.deepEqual(columns, [
     'id', 'user_id', 'sec_type', 'side', 'ticker', 'shares', 'price', 'trade_date', 'created_at', 'split_from',
-    'split_to', 'ref',
+    'split_to', 'ref', 'opt_right', 'strike', 'expiry',
   ]);
 });
 

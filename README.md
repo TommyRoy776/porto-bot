@@ -153,6 +153,8 @@ That's it. The bot is ready to use.
 | `/sell stock`         | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
 | `/buy crypto`         | Record crypto you bought                         | `ticker`, `amount`, `price` | `date`   |
 | `/sell crypto`        | Record crypto you sold                           | `ticker`, `amount`, `price` | `date`   |
+| `/buy option`         | Record option contracts you bought               | `ticker`, `right`, `strike`, `expiry`, `contracts`, `price` | `date` |
+| `/sell option`        | Record option contracts you sold                 | `ticker`, `right`, `strike`, `expiry`, `contracts`, `price` | `date` |
 | `/portfolio`          | Show holdings and recent transactions            | —                           | `user`   |
 | `/position`           | Show every transaction for one ticker            | `ticker`                    | `user`   |
 | `/amend`              | Fix a transaction you entered wrong              | `id`                        | —        |
@@ -168,7 +170,11 @@ What the options mean:
 | `ticker` | Stock symbol, like `AAPL`. For crypto, the coin and currency, like `BTC-USD`            |
 | `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
 | `amount` | Number of coins, like `0.00034`, up to 8 decimal places                                 |
-| `price`  | Price per share or coin in USD, above 0, up to 8 decimals. A leading `$` is optional    |
+| `right`  | Options only: `Call` or `Put`                                                           |
+| `strike` | Options only: the strike price per share, like `150`                                    |
+| `expiry` | Options only: the expiry date as `YYYY-MM-DD`, today or later                           |
+| `contracts` | Options only: number of contracts, a whole number                                    |
+| `price`  | Price per share or coin in USD, above 0, up to 8 decimals. A leading `$` is optional. For options, the price per share as quoted: a contract costs 100 times this |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
 | `id`     | A transaction reference, like `BSS01`                                                   |
@@ -178,8 +184,11 @@ What the options mean:
 A few things worth knowing:
 
 - Crypto amounts are kept to 8 decimal places but shown to 3, cut off rather than rounded.
+- Each option contract (ticker, call or put, strike and expiry) is its own holding. Contracts are never exercised; to
+  close one, record a `/sell option` for the same contract. An expired contract cannot be bought or sold, so remove
+  those with `/delete`. `/amend` can change an option's contracts, price and date, but not the contract itself.
 - Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. Crypto
-  uses `BCC01` and `SCC01`. That is what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
+  uses `BCC01` and `SCC01`, and options `BOC01`, `BOP01`, `SOC01` and `SOP01` (call or put). That is what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
   is `SSS01` and `SL01` is `XSS01`.
 - Deleting or amending a transaction will **not** change or remove the message already in the channel.
 - The bot never lets you sell more shares than you own, or edit your history into an impossible state.

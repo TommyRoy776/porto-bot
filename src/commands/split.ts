@@ -32,7 +32,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   );
   for (const user_id of holders) {
     commitChange(user_id, {
-      insert: { user_id, sec_type: 'SPLIT', side: null, ticker, shares: null, price: null, trade_date, ...ratio },
+      insert: {
+        user_id, sec_type: 'SPLIT', side: null, ticker, shares: null, price: null, trade_date, ...ratio,
+        opt_right: null, strike: null, expiry: null,
+      },
     });
   }
   logTx('split', interaction.user.id, `${ticker} ${ratio.split_to}:${ratio.split_from} holders=${holders.length}`);

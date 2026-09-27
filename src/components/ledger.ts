@@ -18,13 +18,25 @@ export type Tx = {
   created_at: number;
   split_from: number | null;
   split_to: number | null;
+  // OPTION rows only, NULL otherwise (migrations/2026092702_options.sql). expiry is unix seconds
+  // at 12:00 UTC, like trade_date.
+  opt_right: 'CALL' | 'PUT' | null;
+  strike: number | null;
+  expiry: number | null;
 };
 
-export type Position = { sec_type: Holdable; ticker: string; shares: number; avgCost: number };
+export type Position = Pick<Tx, 'ticker' | 'opt_right' | 'strike' | 'expiry'> & {
+  sec_type: Holdable;
+  shares: number;
+  avgCost: number;
+};
 
-// Rows with the same key belong to one position. A split row joins its ticker's stock position.
-export const positionKey = (tx: Pick<Tx, 'sec_type' | 'ticker'>) =>
-  `${tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type} ${tx.ticker}`;
+// Rows with the same key belong to one position: an option is its ticker, right, strike and
+// expiry together. A split row joins its ticker's stock position.
+export const positionKey = (tx: Pick<Tx, 'sec_type' | 'ticker' | 'opt_right' | 'strike' | 'expiry'>) =>
+  tx.sec_type === 'OPTION'
+    ? `OPTION ${tx.ticker} ${tx.opt_right} ${tx.strike} ${tx.expiry}`
+    : `${tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type} ${tx.ticker}`;
 
 // Quantity of that row's position held after each row, in replay order.
 export type History = { tx: Tx; shares: number }[];
@@ -42,7 +54,8 @@ export function replay(rows: Tx[]): Replay {
   for (const tx of ordered) {
     const key = positionKey(tx);
     const sec_type = tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type;
-    const pos = held.get(key) ?? { sec_type, ticker: tx.ticker, shares: 0, avgCost: 0 };
+    const { ticker, opt_right, strike, expiry } = tx;
+    const pos = held.get(key) ?? { sec_type, ticker, opt_right, strike, expiry, shares: 0, avgCost: 0 };
 
     if (tx.sec_type === 'SPLIT') {
       // shares is in hundredths, so this rounds half-up to the nearest 0.01 share; anything
@@ -64,8 +77,14 @@ export function replay(rows: Tx[]): Replay {
     history.push({ tx, shares: pos.shares });
   }
 
+  // Alphabetical by ticker; options of one ticker by nearest expiry, then strike, then right.
   const positions = [...held.values()].sort(
-    (a, b) => a.ticker.localeCompare(b.ticker) || a.sec_type.localeCompare(b.sec_type),
+    (a, b) =>
+      a.ticker.localeCompare(b.ticker) ||
+      a.sec_type.localeCompare(b.sec_type) ||
+      a.expiry! - b.expiry! ||
+      a.strike! - b.strike! ||
+      a.opt_right!.localeCompare(b.opt_right!),
   );
   return { ok: true, positions, history };
 }
