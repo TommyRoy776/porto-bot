@@ -1,16 +1,17 @@
+import type { Holdable } from './units.js';
+
 // A row of the transactions table (migrations/001_transactions.sql).
 export type Tx = {
   id: number;
   // Human-facing reference like BSS01 (src/components/ref.ts).
   ref: string;
   user_id: string;
-  sec_type: 'STOCK' | 'SPLIT';
+  // SPLIT rows apply to the STOCK position of their ticker.
+  sec_type: Holdable | 'SPLIT';
   side: 'BUY' | 'SELL' | null;
   ticker: string;
-  // Whole hundredths of a share: 1278 is 12.78 shares (migrations/2026092615_alter_shares_values.sql).
-  // The rule for every quantity field: quantities are stored scaled, prices are per whole unit.
-  // A dollar amount (quantity × price) divides by the scale once. Math on quantities alone, like
-  // average cost or a split ratio, needs no scaling, because the scale cancels out.
+  // Quantity at the sec_type's scale (src/components/units.ts): 1278 STOCK is 12.78 shares,
+  // 34000 CRYPTO is 0.00034 coins. Named shares because stock came first.
   shares: number | null;
   price: number | null;
   trade_date: number;
@@ -19,9 +20,13 @@ export type Tx = {
   split_to: number | null;
 };
 
-export type Position = { ticker: string; shares: number; avgCost: number };
+export type Position = { sec_type: Holdable; ticker: string; shares: number; avgCost: number };
 
-// Shares of that row's ticker held after each row, in replay order.
+// Rows with the same key belong to one position. A split row joins its ticker's stock position.
+export const positionKey = (tx: Pick<Tx, 'sec_type' | 'ticker'>) =>
+  `${tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type} ${tx.ticker}`;
+
+// Quantity of that row's position held after each row, in replay order.
 export type History = { tx: Tx; shares: number }[];
 
 export type Replay =
@@ -30,12 +35,14 @@ export type Replay =
 
 // Replays one user's rows, in any order, into current positions using average cost.
 export function replay(rows: Tx[]): Replay {
-  const held = new Map<string, { shares: number; avgCost: number }>();
+  const held = new Map<string, Position>();
   const history: History = [];
 
   const ordered = rows.toSorted((a, b) => a.trade_date - b.trade_date || a.created_at - b.created_at || a.id - b.id);
   for (const tx of ordered) {
-    const pos = held.get(tx.ticker) ?? { shares: 0, avgCost: 0 };
+    const key = positionKey(tx);
+    const sec_type = tx.sec_type === 'SPLIT' ? 'STOCK' : tx.sec_type;
+    const pos = held.get(key) ?? { sec_type, ticker: tx.ticker, shares: 0, avgCost: 0 };
 
     if (tx.sec_type === 'SPLIT') {
       // shares is in hundredths, so this rounds half-up to the nearest 0.01 share; anything
@@ -43,8 +50,8 @@ export function replay(rows: Tx[]): Replay {
       pos.shares = Math.round((pos.shares * tx.split_to!) / tx.split_from!);
       pos.avgCost = (pos.avgCost * tx.split_from!) / tx.split_to!;
     } else if (tx.side === 'BUY') {
-      // Deliberately not divided by 100: shares are in hundredths on both sides of this weighted
-      // average, so the factor cancels. Only dollar totals divide.
+      // Deliberately not divided by the scale (100 for stock): quantities are scaled on both sides
+      // of this weighted average, so the factor cancels. Only dollar amounts divide.
       pos.avgCost = (pos.shares * pos.avgCost + tx.shares! * tx.price!) / (pos.shares + tx.shares!);
       pos.shares += tx.shares!;
     } else {
@@ -52,14 +59,14 @@ export function replay(rows: Tx[]): Replay {
       pos.shares -= tx.shares!;
     }
 
-    if (pos.shares > 0) held.set(tx.ticker, pos);
-    else held.delete(tx.ticker);
+    if (pos.shares > 0) held.set(key, pos);
+    else held.delete(key);
     history.push({ tx, shares: pos.shares });
   }
 
-  const positions = [...held]
-    .map(([ticker, { shares, avgCost }]) => ({ ticker, shares, avgCost }))
-    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const positions = [...held.values()].sort(
+    (a, b) => a.ticker.localeCompare(b.ticker) || a.sec_type.localeCompare(b.sec_type),
+  );
   return { ok: true, positions, history };
 }
 

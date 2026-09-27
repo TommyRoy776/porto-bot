@@ -30,9 +30,9 @@ function render(userId: string, ticker: string, page: number) {
   const lines = historyLines(history.filter(({ tx }) => tx.ticker === ticker)).reverse();
   if (!lines.length) throw new UserError(messages.position.none(userId, ticker));
 
-  // The current holding as a one-row table, matching the holdings table in /portfolio.
-  const held = positions.find((p) => p.ticker === ticker);
-  const summary = held ? table([messages.portfolio.columns, holdingRow(held)]) : messages.position.noShares;
+  // The current holdings under this ticker, matching the holdings table in /portfolio.
+  const held = positions.filter((p) => p.ticker === ticker);
+  const summary = held.length ? table([messages.portfolio.columns, ...held.map(holdingRow)]) : messages.position.noShares;
 
   const pageCount = Math.ceil(lines.length / PAGE_SIZE);
   page = Math.min(Math.max(page, 0), pageCount - 1);

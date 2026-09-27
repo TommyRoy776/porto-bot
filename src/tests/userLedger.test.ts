@@ -16,7 +16,7 @@ test('commitChange writes valid changes and returns the stored row', () => {
   const stored = commitChange('a', { insert: trade('a', 'BUY', 10) })!;
   assert.ok(stored.id > 0 && stored.created_at > 0);
   assert.equal(commitChange('a', { update: { ...stored, shares: 12 } })!.shares, 12);
-  assert.deepEqual(ledgerOf('a').positions, [{ ticker: 'AAPL', shares: 12, avgCost: 10 }]);
+  assert.deepEqual(ledgerOf('a').positions, [{ sec_type: 'STOCK', ticker: 'AAPL', shares: 12, avgCost: 10 }]);
 });
 
 test('commitChange rejects a change that would go negative and writes nothing', () => {

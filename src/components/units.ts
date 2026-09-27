@@ -1,0 +1,52 @@
+// How each security type stores its quantity. Quantities are whole numbers at the type's scale,
+// so ledger math never meets floating-point error: 12.78 shares is 1278, 0.00034 BTC is 34,000.
+// SQLite has no exact decimal column type (a DECIMAL column silently stores a float), which is
+// why the scale lives here and the column stays INTEGER.
+//
+//   scale     stored units per whole unit, 10 ** decimals
+//   decimals  most decimals a typed quantity may have
+//   shown     decimals displayed, truncated rather than rounded, so a holding never looks bigger
+//             than it is; the stored value keeps full precision
+//
+// The rule for every quantity: prices are per whole unit, so a dollar amount divides by the scale
+// once (see value). Math on quantities alone, like average cost or a split ratio, needs no scaling.
+export const units = {
+  STOCK: { scale: 100, decimals: 2, shown: 2 },
+  // Satoshi precision. Deliberate limit: the largest storable amount is about 90 million coins,
+  // where the scaled value passes Number.MAX_SAFE_INTEGER; bigger amounts are rejected.
+  CRYPTO: { scale: 100_000_000, decimals: 8, shown: 3 },
+};
+
+export type Holdable = keyof typeof units;
+
+// A quantity from a Discord number option, stored at the type's scale. Null for 0 or less, more
+// decimals than the type allows, or too big to store exactly. toFixed round-trips exactly when the
+// number has few enough decimals, and unlike String() never switches to 3.4e-7 notation; Math.round
+// then absorbs the float error in the multiply (0.29 * 100 is 28.999999999999996).
+export function toScaled(amount: number, type: Holdable) {
+  const { scale, decimals } = units[type];
+  if (!(amount > 0) || Number(amount.toFixed(decimals)) !== amount) return null;
+  const scaled = Math.round(amount * scale);
+  return Number.isSafeInteger(scaled) ? scaled : null;
+}
+
+// A typed quantity from the /amend modal, like "12.78", by the same rules as toScaled.
+export function parseQuantity(input: string, type: Holdable) {
+  const trimmed = input.trim();
+  const pattern = new RegExp(`^\\d+(\\.\\d{1,${units[type].decimals}})?$`);
+  return pattern.test(trimmed) ? toScaled(Number(trimmed), type) : null;
+}
+
+// Plain decimal text for a stored quantity, which parseQuantity reads back: 34000 CRYPTO → "0.00034".
+export const quantityText = (quantity: number, type: Holdable) =>
+  (quantity / units[type].scale).toFixed(units[type].decimals).replace(/\.?0+$/, '');
+
+// Dollars for a stored quantity at a per-unit price.
+export const value = (type: Holdable, quantity: number, price: number) => (quantity * price) / units[type].scale;
+
+// A stored quantity for display: 1278 STOCK → "12.78", 123456789 CRYPTO → "1.234".
+export function formatQuantity(type: Holdable, quantity: number) {
+  const { scale, shown } = units[type];
+  const truncated = Math.trunc(quantity / (scale / 10 ** shown)) / 10 ** shown;
+  return truncated.toLocaleString('en-US', { maximumFractionDigits: shown });
+}

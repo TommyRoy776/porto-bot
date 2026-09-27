@@ -26,10 +26,11 @@ const sell = (shares: number, price: number, day = 1, fields: Partial<Tx> = {}) 
 const split = (to: number, from: number, day = 1, fields: Partial<Tx> = {}) =>
   row({ sec_type: 'SPLIT', split_to: to, split_from: from, trade_date: day * DAY, ...fields });
 
+// Positions without sec_type, which every stock-only test here would repeat.
 function positions(rows: Tx[]) {
   const result = replay(rows);
   assert.ok(result.ok, 'expected replay to succeed');
-  return result.positions;
+  return result.positions.map(({ ticker, shares, avgCost }) => ({ ticker, shares, avgCost }));
 }
 
 test('no rows means no positions', () => {
@@ -151,4 +152,27 @@ test('applyChange delete removes the row with that id', () => {
   const next = applyChange([b, s], { delete: b });
   assert.deepEqual(next, [s]);
   assert.equal(replay(next).ok, false);
+});
+
+test('crypto blends average cost at its own scale, with fractional amounts', () => {
+  const coin = { sec_type: 'CRYPTO' as const, ticker: 'BTC-USD' };
+  // 0.00034 BTC at $100,000, then 0.00066 BTC at $50,000: 0.001 BTC at $67,000.
+  const result = replay([buy(34_000, 100_000, 1, coin), buy(66_000, 50_000, 2, coin), sell(50_000, 1, 3, coin)]);
+  assert.ok(result.ok);
+  assert.deepEqual(result.positions, [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 50_000, avgCost: 67_000 }]);
+});
+
+test('a crypto sell cannot go below zero', () => {
+  const coin = { sec_type: 'CRYPTO' as const, ticker: 'BTC-USD' };
+  const bad = sell(34_001, 1, 2, coin);
+  assert.deepEqual(replay([buy(34_000, 1, 1, coin), bad]), { ok: false, oversold: bad });
+});
+
+test('stock and crypto positions are separate even under the same ticker, and splits only touch stock', () => {
+  const result = replay([buy(100, 10, 1), buy(100, 10, 1, { sec_type: 'CRYPTO' }), split(2, 1, 2)]);
+  assert.ok(result.ok);
+  assert.deepEqual(result.positions, [
+    { sec_type: 'CRYPTO', ticker: 'AAPL', shares: 100, avgCost: 10 },
+    { sec_type: 'STOCK', ticker: 'AAPL', shares: 200, avgCost: 5 },
+  ]);
 });
