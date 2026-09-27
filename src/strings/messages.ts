@@ -61,8 +61,9 @@ export const messages = {
   oversold: (tx: Tx) =>
     `That would leave you with negative **${tx.ticker}** shares as of ${date(tx.trade_date)}. Nothing was changed.`,
 
-  buy: { description: 'Record shares you bought' },
-  sell: { description: 'Record shares you sold' },
+  // One description per /buy and /sell subcommand, keyed by the subcommand name.
+  buy: { description: 'Record a trade you bought', stock: 'Record shares you bought' } as Record<string, string>,
+  sell: { description: 'Record a trade you sold', stock: 'Record shares you sold' } as Record<string, string>,
   recorded: (userId: string, tx: Tx) => `**Trade recorded**\n<@${userId}> ${txLine(tx)}`,
 
   portfolio: {
