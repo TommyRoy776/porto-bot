@@ -8,8 +8,11 @@ const { commitChange, ledgerOf } = await import('../components/userLedger.js');
 const { convertToCrypto } = await import('../components/convertCrypto.js');
 const { userRows } = await import('../queries/transactions.js');
 
+const NOT_OPTION = { opt_right: null, strike: null, expiry: null };
+
 const stock = (user_id: string, side: 'BUY' | 'SELL', shares: number, ticker = 'BTC'): NewTx => ({
   user_id, sec_type: 'STOCK', side, ticker, shares, price: 50_000, trade_date: 86_400, split_from: null, split_to: null,
+  opt_right: null, strike: null, expiry: null,
 });
 
 test('converts V1 stock rows for a coin into crypto rows at the crypto scale, for every user', () => {
@@ -21,10 +24,10 @@ test('converts V1 stock rows for a coin into crypto rows at the crypto scale, fo
   assert.equal(convertToCrypto('BTC', 'BTC-USD'), 3);
 
   assert.deepEqual(ledgerOf('a').positions, [
-    { sec_type: 'STOCK', ticker: 'AAPL', shares: 100, avgCost: 50_000 },
-    { sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 200_000_000, avgCost: 50_000 },
+    { sec_type: 'STOCK', ticker: 'AAPL', shares: 100, avgCost: 50_000, ...NOT_OPTION },
+    { sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 200_000_000, avgCost: 50_000, ...NOT_OPTION },
   ]);
-  assert.deepEqual(ledgerOf('b').positions, [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 100_000_000, avgCost: 50_000 }]);
+  assert.deepEqual(ledgerOf('b').positions, [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 100_000_000, avgCost: 50_000, ...NOT_OPTION }]);
   const refs = userRows('a').filter((r) => r.ticker === 'BTC-USD').map((r) => r.ref.slice(0, 3));
   assert.deepEqual(refs.sort(), ['BCC', 'SCC']);
 });
@@ -32,7 +35,8 @@ test('converts V1 stock rows for a coin into crypto rows at the crypto scale, fo
 test('refuses a ticker with split rows, and changes nothing', () => {
   commitChange('c', { insert: stock('c', 'BUY', 100, 'ETH') });
   commitChange('c', {
-    insert: { user_id: 'c', sec_type: 'SPLIT', side: null, ticker: 'ETH', shares: null, price: null, trade_date: 86_400, split_from: 1, split_to: 2 },
+    insert: { user_id: 'c', sec_type: 'SPLIT', side: null, ticker: 'ETH', shares: null, price: null, trade_date: 86_400, split_from: 1, split_to: 2,
+      opt_right: null, strike: null, expiry: null },
   });
   const before = userRows('c');
   assert.throws(() => convertToCrypto('ETH', 'ETH-USD'), /split/);

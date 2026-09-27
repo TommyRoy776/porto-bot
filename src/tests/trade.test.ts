@@ -39,6 +39,9 @@ test('a stock trade reads into a STOCK row with shares in hundredths', () => {
     trade_date: Date.parse('2026-03-02T12:00:00Z') / 1000,
     split_from: null,
     split_to: null,
+    opt_right: null,
+    strike: null,
+    expiry: null,
   });
 });
 
@@ -79,5 +82,35 @@ test('invalid crypto input is a UserError', () => {
   const bads: Record<string, string | number>[] = [{ ticker: 'BTC.USD' }, { amount: 0.000000001 }, { amount: 100_000_000 }, { price: 0 }];
   for (const bad of bads) {
     assert.throws(() => tradeRow('u', 'BUY', 'crypto', typed({ ...base, ...bad }), 'UTC', NOW), UserError);
+  }
+});
+
+test('/buy and /sell each have an option subcommand', () => {
+  for (const side of ['BUY', 'SELL'] as const) {
+    const json = trade(side).data.toJSON();
+    const option = json.options!.find((o) => o.name === 'option') as {
+      options: { name: string; choices?: { value: string }[] }[];
+    };
+    assert.deepEqual(option.options.map((o) => o.name), ['ticker', 'right', 'strike', 'expiry', 'contracts', 'price', 'date']);
+    assert.deepEqual(option.options[1].choices!.map((c) => c.value), ['CALL', 'PUT']);
+  }
+});
+
+test('an option trade reads into an OPTION row with whole contracts and an expiry date', () => {
+  const values = { ticker: 'aapl', right: 'CALL', strike: 150, expiry: '2026-06-19', contracts: 2, price: 3.2 };
+  const row = tradeRow('u', 'BUY', 'option', typed(values), 'UTC', NOW);
+  assert.deepEqual(
+    [row.sec_type, row.ticker, row.opt_right, row.strike, row.expiry, row.shares, row.price],
+    ['OPTION', 'AAPL', 'CALL', 150, Date.parse('2026-06-19T12:00:00Z') / 1000, 2, 3.2],
+  );
+});
+
+test('invalid option input is a UserError', () => {
+  const base = { ticker: 'AAPL', right: 'PUT', strike: 150, expiry: '2026-06-19', contracts: 1, price: 1 };
+  const bads: Record<string, string | number>[] = [
+    { ticker: 'BTC-USD' }, { right: 'STRADDLE' }, { strike: 0 }, { expiry: '2026-03-09' }, { contracts: 0 }, { contracts: 1.5 },
+  ];
+  for (const bad of bads) {
+    assert.throws(() => tradeRow('u', 'BUY', 'option', typed({ ...base, ...bad }), 'UTC', NOW), UserError, JSON.stringify(bad));
   }
 });

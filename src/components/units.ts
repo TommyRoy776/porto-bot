@@ -3,18 +3,23 @@
 // SQLite has no exact decimal column type (a DECIMAL column silently stores a float), which is
 // why the scale lives here and the column stays INTEGER.
 //
-//   scale     stored units per whole unit, 10 ** decimals
-//   decimals  most decimals a typed quantity may have
-//   shown     decimals displayed, truncated rather than rounded, so a holding never looks bigger
-//             than it is; the stored value keeps full precision
+//   scale       stored units per whole unit, 10 ** decimals
+//   decimals    most decimals a typed quantity may have
+//   shown       decimals displayed, truncated rather than rounded, so a holding never looks bigger
+//               than it is; the stored value keeps full precision
+//   multiplier  units of the underlying one quantity unit prices: an option contract covers 100
+//               shares and its price is quoted per share, so it costs 100 × price. Paper trading
+//               never exercises, so this only ever applies to dollar amounts
 //
 // The rule for every quantity: prices are per whole unit, so a dollar amount divides by the scale
 // once (see value). Math on quantities alone, like average cost or a split ratio, needs no scaling.
 export const units = {
-  STOCK: { scale: 100, decimals: 2, shown: 2 },
+  STOCK: { scale: 100, decimals: 2, shown: 2, multiplier: 1 },
   // Satoshi precision. Deliberate limit: the largest storable amount is about 90 million coins,
   // where the scaled value passes Number.MAX_SAFE_INTEGER; bigger amounts are rejected.
-  CRYPTO: { scale: 100_000_000, decimals: 8, shown: 3 },
+  CRYPTO: { scale: 100_000_000, decimals: 8, shown: 3, multiplier: 1 },
+  // Whole contracts only.
+  OPTION: { scale: 1, decimals: 0, shown: 0, multiplier: 100 },
 };
 
 export type Holdable = keyof typeof units;
@@ -42,7 +47,8 @@ export const quantityText = (quantity: number, type: Holdable) =>
   (quantity / units[type].scale).toFixed(units[type].decimals).replace(/\.?0+$/, '');
 
 // Dollars for a stored quantity at a per-unit price.
-export const value = (type: Holdable, quantity: number, price: number) => (quantity * price) / units[type].scale;
+export const value = (type: Holdable, quantity: number, price: number) =>
+  (quantity * price * units[type].multiplier) / units[type].scale;
 
 // A stored quantity for display: 1278 STOCK → "12.78", 123456789 CRYPTO → "1.234".
 export function formatQuantity(type: Holdable, quantity: number) {

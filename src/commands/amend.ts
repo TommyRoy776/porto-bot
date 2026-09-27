@@ -36,7 +36,7 @@ const field = (id: string, label: string, value: string, min: number, max: numbe
         .setMaxLength(max),
     );
 
-// What differs between editing a stock row and a crypto row: how the ticker is checked, the label
+// What differs between editing each type of row: how the ticker is checked, the label
 // and length limits of the quantity field, and the error shown for each.
 const editable = {
   STOCK: {
@@ -52,6 +52,15 @@ const editable = {
     invalidTicker: messages.invalidCryptoTicker,
     quantityLabel: messages.amend.fields.amount,
     invalidQuantity: messages.invalidAmount,
+  },
+  // A modal holds at most 5 fields, so an option's right, strike and expiry are not editable here;
+  // a wrong contract is fixed with /delete and a new /buy option.
+  OPTION: {
+    parseTicker,
+    tickerMax: 6,
+    invalidTicker: messages.invalidTicker,
+    quantityLabel: messages.amend.fields.contracts,
+    invalidQuantity: messages.invalidContracts,
   },
 };
 

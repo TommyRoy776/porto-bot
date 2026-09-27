@@ -48,3 +48,10 @@ test('quantityText writes a stored quantity as plain decimals that parseQuantity
   assert.equal(quantityText(34_000, 'CRYPTO'), '0.00034');
   for (const q of [1, 34_000, 123_456_789]) assert.equal(parseQuantity(quantityText(q, 'CRYPTO'), 'CRYPTO'), q);
 });
+
+test('an option contract is a whole unit, and its dollar value is 100 × contracts × price', () => {
+  assert.equal(toScaled(2, 'OPTION'), 2);
+  for (const bad of [0, 1.5, -1]) assert.equal(toScaled(bad, 'OPTION'), null, String(bad));
+  assert.equal(value('OPTION', 2, 3.2), 640);
+  assert.equal(formatQuantity('OPTION', 2), '2');
+});

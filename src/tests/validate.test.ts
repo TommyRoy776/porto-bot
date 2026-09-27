@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseCryptoTicker, parseDate, parseLookupTicker, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
+  parseCryptoTicker, parseDate, parseExpiry, parseLookupTicker, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -83,4 +83,13 @@ test('parseLookupTicker accepts any stored ticker shape as typed, without normal
   assert.equal(parseLookupTicker('btc-usd'), 'BTC-USD');
   assert.equal(parseLookupTicker('BTC'), 'BTC');
   for (const bad of ['', 'A B', "A'", 'ABCDEFGHIJKLMNOP']) assert.equal(parseLookupTicker(bad), null, bad);
+});
+
+test('parseExpiry accepts today or later in the configured time zone, the opposite of parseDate', () => {
+  // now is 2026-03-09 in New York.
+  assert.equal(parseExpiry('2026-03-09', 'America/New_York', now), noonUtc('2026-03-09'));
+  assert.equal(parseExpiry('2027-01-15', 'America/New_York', now), noonUtc('2027-01-15'));
+  for (const bad of ['2026-03-08', '2026-02-30', '2026-3-20', '', 'friday']) {
+    assert.equal(parseExpiry(bad, 'America/New_York', now), null, bad);
+  }
 });
