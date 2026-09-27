@@ -1,8 +1,8 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { table } from '../components/format.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { historyLines } from '../components/historyLines.js';
+import { portfolioView } from '../components/views.js';
 import { holdingsOf, recentHistory } from '../queries/holdings.js';
-import { holdingRow, messages } from '../strings/messages.js';
+import { messages } from '../strings/messages.js';
 
 const RECENT_COUNT = 10;
 
@@ -13,16 +13,5 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = (interaction.options.getUser('user') ?? interaction.user).id;
-  const positions = holdingsOf(userId);
-
-  // ponytail: no truncation. The embed description caps at 4096 characters, roughly 90 holdings
-  // alongside the recent list; past that Discord rejects the reply. Paginate holdings if anyone gets there.
-  const holdings = positions.length
-    ? table([messages.portfolio.columns, ...positions.map(holdingRow)])
-    : messages.portfolio.noHoldings;
-  const recent = historyLines(recentHistory(userId, RECENT_COUNT));
-
-  await interaction.reply({
-    embeds: [new EmbedBuilder().setDescription(messages.portfolio.body(userId, holdings, recent))],
-  });
+  await interaction.reply(portfolioView(userId, holdingsOf(userId), historyLines(recentHistory(userId, RECENT_COUNT))));
 }
