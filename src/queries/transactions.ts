@@ -46,8 +46,9 @@ export const insertRow = (tx: NewTx) =>
     )
     .get({ ...tx, ref: nextRef(refPrefix(tx)) }) as Tx;
 
-// Overwrites the user-editable fields of a row and returns it as stored. user_id, sec_type and
-// created_at are never changed, so an amended row keeps its place among same-day rows.
+// Overwrites the user-editable fields of a row and returns it as stored. user_id and created_at
+// are never changed, so an amended row keeps its place among same-day rows. sec_type only changes
+// in the one-time V1 crypto conversion (components/convertCrypto.ts).
 // An amend that flips BUY to SELL gets a new reference, so a BSS row is never really a sell.
 export function updateRow({ user_id, created_at, ...row }: Tx) {
   const prefix = refPrefix(row);
@@ -72,6 +73,10 @@ export const deleteUserRows = (userId: string) =>
 // Removes every row a user has for one ticker, splits included. Returns how many rows were deleted.
 export const deleteUserTickerRows = (userId: string, ticker: string) =>
   Number(db.prepare('DELETE FROM transactions WHERE user_id = ? AND ticker = ?').run(userId, ticker).changes);
+
+// Every user's STOCK and SPLIT rows for a ticker, for converting V1 crypto rows (convertCrypto.ts).
+export const stockRowsForTicker = (ticker: string) =>
+  db.prepare("SELECT * FROM transactions WHERE ticker = ? AND sec_type IN ('STOCK', 'SPLIT')").all(ticker) as Tx[];
 
 // Users with any row for a ticker. Some may have sold out; callers replay to find current holders.
 export const usersWithTicker = (ticker: string) =>

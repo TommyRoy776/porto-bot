@@ -5,6 +5,14 @@ export function parseTicker(input: string) {
   return /^[A-Z.]{1,6}$/.test(ticker) ? ticker : null;
 }
 
+// Yahoo-style crypto pair like BTC-USD: the coin, then the currency it is priced in. A bare
+// symbol like BTC means BTC-USD, so one coin is never stored under two tickers.
+export function parseCryptoTicker(input: string) {
+  const ticker = input.trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,10}(-[A-Z]{3,4})?$/.test(ticker)) return null;
+  return ticker.includes('-') ? ticker : `${ticker}-USD`;
+}
+
 // Today's calendar date as YYYY-MM-DD in the given IANA time zone (en-CA formats as YYYY-MM-DD).
 const todayIn = (tz: string, now: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
 

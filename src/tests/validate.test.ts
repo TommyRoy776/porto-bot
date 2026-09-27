@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseDate, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
+  parseCryptoTicker, parseDate, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -66,4 +66,14 @@ test('priceText writes a price as plain decimals that parsePrice reads back', ()
   for (const price of [150, 150.25, 1e-7, 0.00000001, 3.2]) assert.equal(parsePrice(priceText(price)), price, String(price));
   assert.equal(priceText(1e-7), '0.0000001');
   assert.equal(priceText(150), '150');
+});
+
+test('parseCryptoTicker accepts Yahoo-style pairs and treats a bare symbol as priced in USD', () => {
+  assert.equal(parseCryptoTicker(' btc-usd '), 'BTC-USD');
+  assert.equal(parseCryptoTicker('eth'), 'ETH-USD');
+  assert.equal(parseCryptoTicker('1INCH-USD'), '1INCH-USD');
+  assert.equal(parseCryptoTicker('SOL-EUR'), 'SOL-EUR');
+  for (const bad of ['', '-USD', 'BTC-', 'BTC-US', 'BTC-USDTX', 'ABCDEFGHIJK', 'BTC USD', 'BTC.USD', 'BTC-USD-X']) {
+    assert.equal(parseCryptoTicker(bad), null, bad);
+  }
 });
