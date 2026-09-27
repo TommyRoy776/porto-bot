@@ -117,10 +117,11 @@ export const messages = {
   portfolio: {
     description: 'Show holdings and recent transactions',
     title: (userId: string) => `## Portfolio of <@${userId}>`,
-    holdings: '**Holdings**',
+    holdings: '### Holdings',
     noHoldings: 'No holdings.',
+    section: { STOCK: '**Stocks**', CRYPTO: '**Crypto**', OPTION: '**Options**' },
     total: (cost: number) => `**Total cost basis** ${total(cost)}`,
-    recent: '**Recent transactions**',
+    recent: '### Recent transactions',
     noRecent: 'None yet.',
   },
 
@@ -129,7 +130,7 @@ export const messages = {
     none: (userId: string, ticker: string) => `<@${userId}> has no **${ticker}** transactions.`,
     noShares: 'No shares held.',
     title: (userId: string, ticker: string) => `## ${ticker} — <@${userId}>`,
-    transactions: '**Transactions**',
+    transactions: '### Transactions',
   },
 
   delete: {
