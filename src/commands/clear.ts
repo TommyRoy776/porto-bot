@@ -14,7 +14,9 @@ import { messages } from '../strings/messages.js';
 export const data = new SlashCommandBuilder()
   .setName('clear')
   .setDescription(messages.clear.description)
-  .addStringOption((o) => o.setName('ticker').setDescription(messages.options.ticker).setRequired(true));
+  .addStringOption((o) =>
+    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6),
+  );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const ticker = parseTicker(interaction.options.getString('ticker', true));

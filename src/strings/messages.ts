@@ -56,7 +56,7 @@ export const messages = {
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
   invalidRef: 'Transaction IDs look like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split).',
   invalidShares: 'Shares must be above 0 with at most 2 decimals, like `12.78`.',
-  invalidPrice: 'Price must be a number, 0 or more.',
+  invalidPrice: 'Price must be above 0 and at most $10,000,000, with at most 8 decimals, like `150.25`.',
   invalidDate: 'Dates must be `YYYY-MM-DD` and not in the future.',
   oversold: (tx: Tx) =>
     `That would leave you with negative **${tx.ticker}** shares as of ${date(tx.trade_date)}. Nothing was changed.`,

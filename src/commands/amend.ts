@@ -13,18 +13,27 @@ import { ownRow } from '../components/ownRow.js';
 import { commitChange } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
 import { parseRef } from '../components/ref.js';
-import { parseDate, parsePrice, parseShares, parseTicker, toDateString } from '../components/validate.js';
+import { parseDate, parsePrice, parseShares, parseTicker, priceText, toDateString } from '../components/validate.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
   .setName('amend')
   .setDescription(messages.amend.description)
-  .addStringOption((o) => o.setName('id').setDescription(messages.options.id).setRequired(true));
+  .addStringOption((o) => o.setName('id').setDescription(messages.options.id).setRequired(true).setMaxLength(12));
 
-const field = (id: string, label: string, value: string) =>
+// min and max are the lengths the matching parser in validate.ts can accept, so Discord rejects
+// anything longer before it reaches the bot.
+const field = (id: string, label: string, value: string, min: number, max: number) =>
   new LabelBuilder()
     .setLabel(label)
-    .setTextInputComponent(new TextInputBuilder().setCustomId(id).setStyle(TextInputStyle.Short).setValue(value));
+    .setTextInputComponent(
+      new TextInputBuilder()
+        .setCustomId(id)
+        .setStyle(TextInputStyle.Short)
+        .setValue(value)
+        .setMinLength(min)
+        .setMaxLength(max),
+    );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const ref = parseRef(interaction.options.getString('id', true));
@@ -39,12 +48,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setCustomId(`amend:${row.ref}`)
       .setTitle(messages.amend.title(row.ref))
       .addLabelComponents(
-        field('ticker', labels.ticker, row.ticker),
-        field('side', labels.side, row.side!),
+        field('ticker', labels.ticker, row.ticker, 1, 6),
+        field('side', labels.side, row.side!, 3, 4),
         // Stored in hundredths; shown as the decimal the user typed, which parseShares reads back.
-        field('shares', labels.shares, String(row.shares! / 100)),
-        field('price', labels.price, String(row.price)),
-        field('date', labels.date, toDateString(row.trade_date)),
+        field('shares', labels.shares, String(row.shares! / 100), 1, 20),
+        field('price', labels.price, priceText(row.price!), 1, 20),
+        field('date', labels.date, toDateString(row.trade_date), 10, 10),
       ),
   );
 }
