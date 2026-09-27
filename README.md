@@ -165,7 +165,7 @@ What the options mean:
 |----------|-----------------------------------------------------------------------------------------|
 | `ticker` | Stock symbol, like `AAPL`                                                               |
 | `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
-| `price`  | Price per share in USD. A leading `$` is optional                                       |
+| `price`  | Price per share in USD, above 0, up to 8 decimals. A leading `$` is optional            |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
 | `id`     | A transaction reference, like `BSS01`                                                   |

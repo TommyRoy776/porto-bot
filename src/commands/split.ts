@@ -11,8 +11,12 @@ export const data = new SlashCommandBuilder()
   .setName('split')
   .setDescription(messages.split.description)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addStringOption((o) => o.setName('ticker').setDescription(messages.options.ticker).setRequired(true))
-  .addStringOption((o) => o.setName('ratio').setDescription(messages.split.ratioOption).setRequired(true));
+  .addStringOption((o) =>
+    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6),
+  )
+  .addStringOption((o) =>
+    o.setName('ratio').setDescription(messages.split.ratioOption).setRequired(true).setMaxLength(11),
+  );
 
 // Writes one SPLIT row per current holder, dated today, so replay stays per-user and each
 // holder can undo their own copy with /delete.

@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
   .setName('position')
   .setDescription(messages.position.description)
   .addStringOption((o) =>
-    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setAutocomplete(true),
+    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6).setAutocomplete(true),
   )
   .addUserOption((o) => o.setName('user').setDescription(messages.options.user));
 

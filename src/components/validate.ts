@@ -44,7 +44,21 @@ export function parseShares(input: string) {
   return /^\d+(\.\d{1,2})?$/.test(trimmed) ? toHundredths(Number(trimmed)) : null;
 }
 
+// Highest price per unit accepted. Well above any real share or coin, low enough to catch a typo.
+export const MAX_PRICE = 10_000_000;
+
+// A price per unit from a Discord number option: above 0, at most MAX_PRICE, at most 8 decimals
+// (enough for a coin priced below a cent). toFixed(8) round-trips exactly when there are 8 or
+// fewer decimals, and unlike String() it never switches to 1e-7 notation.
+export function toPrice(price: number) {
+  return price > 0 && price <= MAX_PRICE && Number(price.toFixed(8)) === price ? price : null;
+}
+
+// A price as plain decimal text that parsePrice reads back: 1e-7 becomes "0.0000001".
+export const priceText = (price: number) => price.toFixed(8).replace(/\.?0+$/, '');
+
+// A typed price from the /amend modal, like "$1,234.50", by the same rules as toPrice.
 export function parsePrice(input: string) {
   const cleaned = input.trim().replace(/[$,]/g, '');
-  return /^\d*\.?\d+$/.test(cleaned) ? Number(cleaned) : null;
+  return /^\d*\.?\d+$/.test(cleaned) ? toPrice(Number(cleaned)) : null;
 }

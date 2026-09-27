@@ -49,7 +49,9 @@ test('a stock trade without a date is dated today', () => {
 
 test('invalid stock input is a UserError', () => {
   const base = { ticker: 'AAPL', shares: 1, price: 1 };
-  const bads: Record<string, string | number>[] = [{ ticker: 'TOOLONGX' }, { shares: 0.001 }, { date: '2099-01-01' }];
+  const bads: Record<string, string | number>[] = [
+    { ticker: 'TOOLONGX' }, { shares: 0.001 }, { price: 0 }, { price: 1.123456789 }, { date: '2099-01-01' },
+  ];
   for (const bad of bads) {
     assert.throws(() => tradeRow('u', 'BUY', 'stock', typed({ ...base, ...bad }), 'UTC', NOW), UserError);
   }

@@ -14,7 +14,7 @@ import { messages } from '../strings/messages.js';
 export const data = new SlashCommandBuilder()
   .setName('delete')
   .setDescription(messages.delete.description)
-  .addStringOption((o) => o.setName('id').setDescription(messages.options.id).setRequired(true));
+  .addStringOption((o) => o.setName('id').setDescription(messages.options.id).setRequired(true).setMaxLength(12));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const ref = parseRef(interaction.options.getString('id', true));

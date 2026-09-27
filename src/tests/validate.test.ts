@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseDate, parsePrice, parseRatio, parseShares, parseTicker, toDateString, toHundredths,
+  parseDate, parsePrice, parseRatio, parseShares, parseTicker, toDateString, toHundredths, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -63,9 +63,24 @@ test('toHundredths converts a Discord number option, rejecting more than 2 decim
   for (const bad of [0, -1, 1.234, 19.99999, 1e21]) assert.equal(toHundredths(bad), null, String(bad));
 });
 
-test('parsePrice accepts non-negative decimals', () => {
+test('parsePrice accepts prices above 0 with up to 8 decimals, and an optional $ and commas', () => {
   assert.equal(parsePrice('150.25'), 150.25);
-  assert.equal(parsePrice('0'), 0);
   assert.equal(parsePrice('$1,234.5'), 1234.5);
-  for (const bad of ['-1', 'abc', '', '1.2.3']) assert.equal(parsePrice(bad), null, bad);
+  assert.equal(parsePrice('0.00000001'), 0.00000001);
+  assert.equal(parsePrice('10000000'), 10_000_000);
+  for (const bad of ['0', '0.00', '-1', 'abc', '', '1.2.3', '0.000000001', '10000000.01', '1e3', "1; DROP TABLE x"]) {
+    assert.equal(parsePrice(bad), null, bad);
+  }
+});
+
+test('toPrice checks a Discord number option by the same rules as parsePrice', () => {
+  assert.equal(toPrice(3.2), 3.2);
+  assert.equal(toPrice(1e-7), 1e-7);
+  for (const bad of [0, -5, 1.123456789, 10_000_001, Infinity, NaN]) assert.equal(toPrice(bad), null, String(bad));
+});
+
+test('priceText writes a price as plain decimals that parsePrice reads back', () => {
+  for (const price of [150, 150.25, 1e-7, 0.00000001, 3.2]) assert.equal(parsePrice(priceText(price)), price, String(price));
+  assert.equal(priceText(1e-7), '0.0000001');
+  assert.equal(priceText(150), '150');
 });

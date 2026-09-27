@@ -10,7 +10,12 @@ export const confirmModal = (customId: string, title: string, expected: string) 
       new LabelBuilder()
         .setLabel(messages.typeToConfirm)
         .setTextInputComponent(
-          new TextInputBuilder().setCustomId('confirm').setStyle(TextInputStyle.Short).setPlaceholder(expected),
+          new TextInputBuilder()
+            .setCustomId('confirm')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder(expected)
+            .setMinLength(expected.length)
+            .setMaxLength(expected.length),
         ),
     );
 
