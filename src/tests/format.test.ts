@@ -15,9 +15,11 @@ test('table left-aligns the first column and right-aligns the rest', () => {
   );
 });
 
-test('money keeps at least 2 and at most 4 decimals, totals are always cents', () => {
+test('money keeps at least 2 and at most 4 decimals (8 below $1), totals are always cents', () => {
   assert.equal(money(1234.5), '$1,234.50');
-  assert.equal(money(0.00123), '$0.0012');
+  assert.equal(money(150.123456), '$150.1235');
+  // Below a dollar, as coins often are, up to 8 decimals so the price does not show as $0.00.
+  assert.equal(money(0.00001234), '$0.00001234');
   assert.equal(total(853.33336), '$853.33');
 });
 
@@ -50,4 +52,15 @@ test('historyLines shows share counts before and after a split', () => {
   const result = replay(rows);
   assert.ok(result.ok);
   assert.match(historyLines(result.history)[2], /\*\*SPLIT\*\* 3:2 of \*\*AAPL\*\* — 5 → 7.5 shares\n`XX01` · <t:3:D>/);
+});
+
+test('a crypto transaction shows coins, truncated to 3 decimals, with the total from the full amount', () => {
+  const tx = {
+    id: 1, ref: 'BCC01', user_id: 'u', sec_type: 'CRYPTO' as const, side: 'BUY' as const, ticker: 'BTC-USD',
+    shares: 123_456_789, price: 100_000, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
+  };
+  assert.equal(
+    messages.txLine(tx),
+    '**BUY** 1.234 × coins of **BTC-USD** @ $100,000.00\n`BCC01` · total $123,456.79 · <t:1767268800:D>',
+  );
 });

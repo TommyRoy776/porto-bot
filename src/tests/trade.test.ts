@@ -56,3 +56,28 @@ test('invalid stock input is a UserError', () => {
     assert.throws(() => tradeRow('u', 'BUY', 'stock', typed({ ...base, ...bad }), 'UTC', NOW), UserError);
   }
 });
+
+test('/buy and /sell each have a crypto subcommand with an amount instead of shares', () => {
+  for (const side of ['BUY', 'SELL'] as const) {
+    const json = trade(side).data.toJSON();
+    const crypto = json.options!.find((o) => o.name === 'crypto') as { options: { name: string; max_length?: number }[] };
+    assert.deepEqual(crypto.options.map((o) => o.name), ['ticker', 'amount', 'price', 'date']);
+    assert.equal(crypto.options[0].max_length, 15);
+  }
+});
+
+test('a crypto trade reads into a CRYPTO row, at the crypto scale, priced in USD by default', () => {
+  const row = tradeRow('u', 'BUY', 'crypto', typed({ ticker: 'btc', amount: 0.00034, price: 100_000 }), 'UTC', NOW);
+  assert.equal(row.sec_type, 'CRYPTO');
+  assert.equal(row.ticker, 'BTC-USD');
+  assert.equal(row.shares, 34_000);
+  assert.equal(row.price, 100_000);
+});
+
+test('invalid crypto input is a UserError', () => {
+  const base = { ticker: 'BTC-USD', amount: 1, price: 1 };
+  const bads: Record<string, string | number>[] = [{ ticker: 'BTC.USD' }, { amount: 0.000000001 }, { amount: 100_000_000 }, { price: 0 }];
+  for (const bad of bads) {
+    assert.throws(() => tradeRow('u', 'BUY', 'crypto', typed({ ...base, ...bad }), 'UTC', NOW), UserError);
+  }
+});

@@ -11,7 +11,7 @@ import { pageButtons } from '../components/pageButtons.js';
 import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
 import { ledgerOf } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
-import { parseTicker } from '../components/validate.js';
+import { parseLookupTicker } from '../components/validate.js';
 import { holdingRow, messages } from '../strings/messages.js';
 
 const PAGE_SIZE = 10;
@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
   .setName('position')
   .setDescription(messages.position.description)
   .addStringOption((o) =>
-    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6).setAutocomplete(true),
+    o.setName('ticker').setDescription(messages.options.anyTicker).setRequired(true).setMaxLength(15).setAutocomplete(true),
   )
   .addUserOption((o) => o.setName('user').setDescription(messages.options.user));
 
@@ -45,8 +45,8 @@ function render(userId: string, ticker: string, page: number) {
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const ticker = parseTicker(interaction.options.getString('ticker', true));
-  if (!ticker) throw new UserError(messages.invalidTicker);
+  const ticker = parseLookupTicker(interaction.options.getString('ticker', true));
+  if (!ticker) throw new UserError(messages.invalidLookupTicker);
   const userId = (interaction.options.getUser('user') ?? interaction.user).id;
   await interaction.reply(render(userId, ticker, 0));
 }

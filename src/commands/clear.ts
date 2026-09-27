@@ -7,7 +7,7 @@ import {
 import { confirmModal, typedMatches } from '../components/confirmModal.js';
 import { logTx } from '../components/log.js';
 import { UserError } from '../components/userError.js';
-import { parseTicker } from '../components/validate.js';
+import { parseLookupTicker } from '../components/validate.js';
 import { deleteUserTickerRows } from '../queries/transactions.js';
 import { messages } from '../strings/messages.js';
 
@@ -15,12 +15,12 @@ export const data = new SlashCommandBuilder()
   .setName('clear')
   .setDescription(messages.clear.description)
   .addStringOption((o) =>
-    o.setName('ticker').setDescription(messages.options.ticker).setRequired(true).setMaxLength(6),
+    o.setName('ticker').setDescription(messages.options.anyTicker).setRequired(true).setMaxLength(15),
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const ticker = parseTicker(interaction.options.getString('ticker', true));
-  if (!ticker) throw new UserError(messages.invalidTicker);
+  const ticker = parseLookupTicker(interaction.options.getString('ticker', true));
+  if (!ticker) throw new UserError(messages.invalidLookupTicker);
   await interaction.showModal(confirmModal(`clear:${ticker}`, messages.clear.title(ticker), ticker));
 }
 

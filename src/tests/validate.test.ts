@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseCryptoTicker, parseDate, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
+  parseCryptoTicker, parseDate, parseLookupTicker, parsePrice, parseRatio, parseTicker, toDateString, toPrice, priceText,
 } from '../components/validate.js';
 
 test('parseTicker uppercases and accepts 1-6 letters or dots', () => {
@@ -76,4 +76,11 @@ test('parseCryptoTicker accepts Yahoo-style pairs and treats a bare symbol as pr
   for (const bad of ['', '-USD', 'BTC-', 'BTC-US', 'BTC-USDTX', 'ABCDEFGHIJK', 'BTC USD', 'BTC.USD', 'BTC-USD-X']) {
     assert.equal(parseCryptoTicker(bad), null, bad);
   }
+});
+
+test('parseLookupTicker accepts any stored ticker shape as typed, without normalizing', () => {
+  assert.equal(parseLookupTicker(' brk.b '), 'BRK.B');
+  assert.equal(parseLookupTicker('btc-usd'), 'BTC-USD');
+  assert.equal(parseLookupTicker('BTC'), 'BTC');
+  for (const bad of ['', 'A B', "A'", 'ABCDEFGHIJKLMNOP']) assert.equal(parseLookupTicker(bad), null, bad);
 });

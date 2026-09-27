@@ -151,6 +151,8 @@ That's it. The bot is ready to use.
 |-----------------------|--------------------------------------------------|-----------------------------|----------|
 | `/buy stock`          | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
 | `/sell stock`         | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
+| `/buy crypto`         | Record crypto you bought                         | `ticker`, `amount`, `price` | `date`   |
+| `/sell crypto`        | Record crypto you sold                           | `ticker`, `amount`, `price` | `date`   |
 | `/portfolio`          | Show holdings and recent transactions            | —                           | `user`   |
 | `/position`           | Show every transaction for one ticker            | `ticker`                    | `user`   |
 | `/amend`              | Fix a transaction you entered wrong              | `id`                        | —        |
@@ -163,9 +165,10 @@ What the options mean:
 
 | Field    | Meaning                                                                                 |
 |----------|-----------------------------------------------------------------------------------------|
-| `ticker` | Stock symbol, like `AAPL`                                                               |
+| `ticker` | Stock symbol, like `AAPL`. For crypto, the coin and currency, like `BTC-USD`            |
 | `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
-| `price`  | Price per share in USD, above 0, up to 8 decimals. A leading `$` is optional            |
+| `amount` | Number of coins, like `0.00034`, up to 8 decimal places                                 |
+| `price`  | Price per share or coin in USD, above 0, up to 8 decimals. A leading `$` is optional    |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
 | `id`     | A transaction reference, like `BSS01`                                                   |
@@ -174,8 +177,9 @@ What the options mean:
 
 A few things worth knowing:
 
-- Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. That is
-  what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
+- Crypto amounts are kept to 8 decimal places but shown to 3, cut off rather than rounded.
+- Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. Crypto
+  uses `BCC01` and `SCC01`. That is what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
   is `SSS01` and `SL01` is `XSS01`.
 - Deleting or amending a transaction will **not** change or remove the message already in the channel.
 - The bot never lets you sell more shares than you own, or edit your history into an impossible state.

@@ -11,11 +11,14 @@ import { formatQuantity, value } from '../components/units.js';
 // New transaction types (V2 options) follow the same shape: "**BUY** 2 × CALL of **AAPL** ...".
 // The paradigm is documented in CLAUDE.md; keep it in sync.
 // Quantities are stored scaled (src/components/units.ts), so formatQuantity and value do the unscaling.
+// What one unit of each security type is called in a transaction line.
+const unitName = { STOCK: 'shares', CRYPTO: 'coins' };
+
 const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'
     ? `**SPLIT** ${tx.split_to}:${tx.split_from} of **${tx.ticker}**` +
       (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} shares` : '')
-    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
+    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unitName[tx.sec_type]} of **${tx.ticker}** @ ${money(tx.price!)}`;
 
 const meta = (tx: Tx) =>
   tx.sec_type === 'SPLIT'
@@ -49,22 +52,29 @@ export const messages = {
     ticker: 'Ticker symbol, e.g. AAPL',
     shares: 'Number of shares, up to 2 decimals, e.g. 12.78',
     price: 'Price per share',
+    anyTicker: 'Ticker symbol, e.g. AAPL or BTC-USD',
+    cryptoTicker: 'Coin and currency, e.g. BTC-USD. BTC alone means BTC-USD',
+    amount: 'Number of coins, up to 8 decimals, e.g. 0.00034',
+    coinPrice: 'Price per coin',
     date: 'Trade date as YYYY-MM-DD. Defaults to today',
     user: 'Whose transactions to show. Defaults to you',
     id: 'Transaction ID, e.g. BSS01, shown next to each transaction',
   },
 
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
+  invalidLookupTicker: 'Tickers are up to 15 letters, digits, dots or dashes, like `AAPL` or `BTC-USD`.',
   invalidRef: 'Transaction IDs look like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split).',
   invalidShares: 'Shares must be above 0 with at most 2 decimals, like `12.78`.',
+  invalidCryptoTicker: 'Crypto tickers are a coin and a currency, like `BTC-USD`, or just the coin, like `BTC`.',
+  invalidAmount: 'Amount must be above 0 and below 90,000,000, with at most 8 decimals, like `0.00034`.',
   invalidPrice: 'Price must be above 0 and at most $10,000,000, with at most 8 decimals, like `150.25`.',
   invalidDate: 'Dates must be `YYYY-MM-DD` and not in the future.',
   oversold: (tx: Tx) =>
     `That would leave you with negative **${tx.ticker}** shares as of ${date(tx.trade_date)}. Nothing was changed.`,
 
   // One description per /buy and /sell subcommand, keyed by the subcommand name.
-  buy: { description: 'Record a trade you bought', stock: 'Record shares you bought' } as Record<string, string>,
-  sell: { description: 'Record a trade you sold', stock: 'Record shares you sold' } as Record<string, string>,
+  buy: { description: 'Record a trade you bought', stock: 'Record shares you bought', crypto: 'Record crypto you bought' } as Record<string, string>,
+  sell: { description: 'Record a trade you sold', stock: 'Record shares you sold', crypto: 'Record crypto you sold' } as Record<string, string>,
   recorded: (userId: string, tx: Tx) => `**Trade recorded**\n<@${userId}> ${txLine(tx)}`,
 
   portfolio: {
@@ -97,6 +107,7 @@ export const messages = {
       ticker: 'Ticker',
       side: 'Side (BUY or SELL)',
       shares: 'Shares',
+      amount: 'Amount (coins)',
       price: 'Price per share',
       date: 'Date (YYYY-MM-DD)',
     },
