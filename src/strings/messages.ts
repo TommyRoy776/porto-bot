@@ -8,10 +8,15 @@ import { toDateString } from '../components/validate.js';
 //   **ACTION** QUANTITY × UNIT of **TICKER** @ UNIT_PRICE
 //   `REF` · total TOTAL · DATE
 //
-// Rows that have no price, like splits, put their detail on the first line and drop the total.
-// New transaction types (V2 options) follow the same shape: "**BUY** 2 × CALL of **AAPL** ...".
-// The paradigm is documented in CLAUDE.md; keep it in sync.
+// Rows that have no price, like splits, put their detail on the first line and drop the total. An
+// option names its contract after the ticker: "**BUY** 2 × CALL of **AAPL** $150.00 2026-01-16 @ $3.20".
+// A sell adds "P/L +$12.34" before the date. In /portfolio and /position each transaction is its
+// own text display, with a Separator component between entries (src/components/views.ts); elsewhere
+// it is a plain message or embed. Holdings are one line each, see holdingLine.
 // Quantities are stored scaled (src/components/units.ts), so formatQuantity and value do the unscaling.
+
+// What a quantity of each type is called in a holdings line.
+const quantityUnit = { STOCK: 'shares', CRYPTO: 'coins', OPTION: 'contracts' };
 
 // What one unit is called in a transaction line: an option's unit is its right, CALL or PUT.
 const unit = (tx: Tx) => (tx.sec_type === 'OPTION' ? tx.opt_right : tx.sec_type === 'CRYPTO' ? 'coins' : 'shares');
@@ -44,14 +49,9 @@ const meta = (tx: Tx, realized?: number | null) =>
 type Extra = { counts?: [number, number]; realized?: number | null };
 const txLine = (tx: Tx, { counts, realized }: Extra = {}) => `${action(tx, counts)}\n${meta(tx, realized)}`;
 
-// Thin rule between transactions in a list, so entries do not run together.
-const SEPARATOR = '\n────────────\n';
-const txList = (lines: string[]) => lines.join(SEPARATOR);
-
 // Every user-facing string lives here.
 export const messages = {
   txLine,
-  txList,
   unexpectedError: 'Something went wrong. Try again, and tell the server owner if it keeps happening.',
 
   confirm: 'Confirm',
@@ -116,19 +116,20 @@ export const messages = {
 
   portfolio: {
     description: 'Show holdings and recent transactions',
-    columns: ['Ticker', 'Shares', 'Avg cost', 'Cost basis'],
+    title: (userId: string) => `## Portfolio of <@${userId}>`,
+    holdings: '**Holdings**',
     noHoldings: 'No holdings.',
-    body: (userId: string, holdings: string, recent: string[]) =>
-      `## Portfolio of <@${userId}>\n**Holdings**\n${holdings}\n**Recent transactions**\n` +
-      (recent.length ? txList(recent) : 'None yet.'),
+    total: (cost: number) => `**Total cost basis** ${total(cost)}`,
+    recent: '**Recent transactions**',
+    noRecent: 'None yet.',
   },
 
   position: {
     description: 'Show every transaction for one ticker, with IDs for /amend and /delete',
     none: (userId: string, ticker: string) => `<@${userId}> has no **${ticker}** transactions.`,
     noShares: 'No shares held.',
-    body: (userId: string, ticker: string, summary: string, lines: string[]) =>
-      `## ${ticker} — <@${userId}>\n${summary}\n**Transactions**\n${txList(lines)}`,
+    title: (userId: string, ticker: string) => `## ${ticker} — <@${userId}>`,
+    transactions: '**Transactions**',
   },
 
   delete: {
@@ -175,12 +176,9 @@ export const messages = {
     done: (ticker: string, ratio: { split_to: number; split_from: number }, count: number) =>
       `Applied a ${ratio.split_to}:${ratio.split_from} split to **${ticker}** for ${count} ${count === 1 ? 'member' : 'members'}.`,
   },
-};
 
-// A holdings row for the table in /portfolio and /position: position, quantity, average cost, cost basis.
-export const holdingRow = (position: Position) => [
-  positionLabel(position),
-  formatQuantity(position.sec_type, position.shares),
-  money(position.avgCost),
-  total(value(position.sec_type, position.shares, position.avgCost)),
-];
+  // One holding in /portfolio and /position: position, quantity, average cost, cost basis.
+  holdingLine: (p: Position) =>
+    `**${positionLabel(p)}** · ${formatQuantity(p.sec_type, p.shares)} ${quantityUnit[p.sec_type]} · ` +
+    `avg ${money(p.avgCost)} · cost ${total(value(p.sec_type, p.shares, p.avgCost))}`,
+};

@@ -1,19 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { money, table, total } from '../components/format.js';
+import { money, total } from '../components/format.js';
 import { historyLines } from '../components/historyLines.js';
 import { replay, type Tx } from '../components/ledger.js';
-import { holdingRow, messages } from '../strings/messages.js';
-
-test('table left-aligns the first column and right-aligns the rest', () => {
-  assert.equal(
-    table([
-      ['Ticker', 'Shares'],
-      ['BRK.B', '5'],
-    ]),
-    '```\nTicker  Shares\nBRK.B        5\n```',
-  );
-});
+import { messages } from '../strings/messages.js';
 
 test('money keeps at least 2 and at most 4 decimals (8 below $1), totals are always cents', () => {
   assert.equal(money(1234.5), '$1,234.50');
@@ -35,13 +25,13 @@ test('every transaction renders as an action line then a metadata line', () => {
   );
 });
 
-test('a holdings row shows decimal shares and a cost basis in dollars', () => {
-  assert.deepEqual(holdingRow({ sec_type: 'STOCK', ticker: 'AAPL', shares: 1250, avgCost: 10, opt_right: null, strike: null, expiry: null }), ['AAPL', '12.5', '$10.00', '$125.00']);
+test('a holdings line shows decimal shares and a cost basis in dollars', () => {
+  assert.equal(
+    messages.holdingLine({ sec_type: 'STOCK', ticker: 'AAPL', shares: 1250, avgCost: 10, opt_right: null, strike: null, expiry: null }),
+    '**AAPL** · 12.5 shares · avg $10.00 · cost $125.00',
+  );
 });
 
-test('a transaction list puts a separator between entries', () => {
-  assert.match(messages.txList(['a', 'b']), /^a\n─+\nb$/);
-});
 
 test('historyLines shows share counts before and after a split', () => {
   const base = {
@@ -84,10 +74,10 @@ test('an option transaction names the contract, and its total is 100 × contract
   );
 });
 
-test('an option holdings row names the contract and multiplies the cost basis by 100', () => {
-  assert.deepEqual(
-    holdingRow({ sec_type: 'OPTION', ticker: 'AAPL', shares: 2, avgCost: 3.2, opt_right: 'PUT', strike: 150, expiry: JAN_16 }),
-    ['AAPL PUT $150.00 2026-01-16', '2', '$3.20', '$640.00'],
+test('an option holdings line names the contract and multiplies the cost basis by 100', () => {
+  assert.equal(
+    messages.holdingLine({ sec_type: 'OPTION', ticker: 'AAPL', shares: 2, avgCost: 3.2, opt_right: 'PUT', strike: 150, expiry: JAN_16 }),
+    '**AAPL PUT $150.00 2026-01-16** · 2 contracts · avg $3.20 · cost $640.00',
   );
 });
 

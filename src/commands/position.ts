@@ -1,18 +1,16 @@
 import {
-  EmbedBuilder,
   SlashCommandBuilder,
   type AutocompleteInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { table } from '../components/format.js';
 import { historyLines } from '../components/historyLines.js';
-import { pageButtons } from '../components/pageButtons.js';
 import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
 import { holdingsOf, tickerHistory } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { parseLookupTicker } from '../components/validate.js';
-import { holdingRow, messages } from '../strings/messages.js';
+import { positionView } from '../components/views.js';
+import { messages } from '../strings/messages.js';
 
 const PAGE_SIZE = 10;
 
@@ -24,19 +22,12 @@ export const data = new SlashCommandBuilder()
   )
   .addUserOption((o) => o.setName('user').setDescription(messages.options.user));
 
-// Page `page` of the member's transactions for the ticker, newest first.
+// Page `requested` of the member's transactions for the ticker, newest first.
 function render(userId: string, ticker: string, requested: number) {
   const { rows, page, pageCount } = tickerHistory(userId, ticker, PAGE_SIZE, requested);
   if (!pageCount) throw new UserError(messages.position.none(userId, ticker));
-
-  // The current holdings under this ticker, matching the holdings table in /portfolio.
   const held = holdingsOf(userId).filter((p) => p.ticker === ticker);
-  const summary = held.length ? table([messages.portfolio.columns, ...held.map(holdingRow)]) : messages.position.noShares;
-
-  const embed = new EmbedBuilder().setDescription(messages.position.body(userId, ticker, summary, historyLines(rows)));
-  if (pageCount === 1) return { embeds: [embed], components: [] };
-  embed.setFooter({ text: messages.page(page, pageCount) });
-  return { embeds: [embed], components: [pageButtons((p) => `position:${p}:${userId}:${ticker}`, page, pageCount)] };
+  return positionView(userId, ticker, held, historyLines(rows), page, pageCount);
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
