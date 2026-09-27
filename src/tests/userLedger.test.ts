@@ -4,7 +4,8 @@ import type { NewTx } from '../components/ledger.js';
 
 // config.ts validates env at import, so set it before loading anything that opens the database.
 Object.assign(process.env, { DISCORD_TOKEN: 't', DISCORD_CLIENT_ID: 'c', DISCORD_GUILD_ID: 'g', DB_PATH: ':memory:' });
-const { commitChange, ledgerOf, realizedOf } = await import('../components/userLedger.js');
+const { commitChange } = await import('../components/userLedger.js');
+const { holdingsOf, realizedOf } = await import('../queries/holdings.js');
 const { userRows } = await import('../queries/transactions.js');
 const { UserError } = await import('../components/userError.js');
 
@@ -17,7 +18,7 @@ test('commitChange writes valid changes and returns the stored row', () => {
   const stored = commitChange('a', { insert: trade('a', 'BUY', 10) })!;
   assert.ok(stored.id > 0 && stored.created_at > 0);
   assert.equal(commitChange('a', { update: { ...stored, shares: 12 } })!.shares, 12);
-  assert.deepEqual(ledgerOf('a').positions, [{ sec_type: 'STOCK', ticker: 'AAPL', shares: 12, avgCost: 10, opt_right: null, strike: null, expiry: null }]);
+  assert.deepEqual(holdingsOf('a'), [{ sec_type: 'STOCK', ticker: 'AAPL', shares: 12, avgCost: 10, opt_right: null, strike: null, expiry: null }]);
 });
 
 test('commitChange rejects a change that would go negative and writes nothing', () => {
@@ -81,6 +82,6 @@ test('option trades get BOC/BOP/SOC/SOP references by side and right', () => {
 test('realizedOf gives a stored sell its P/L, and anything else null', () => {
   const bought = commitChange('p', { insert: { ...trade('p', 'BUY', 1000), price: 10 } })!;
   const sold = commitChange('p', { insert: { ...trade('p', 'SELL', 400), price: 12.5 } })!;
-  assert.equal(realizedOf(sold), 10); // 4 shares × $2.50
-  assert.equal(realizedOf(bought), null);
+  assert.equal(realizedOf(sold.id), 10); // 4 shares × $2.50
+  assert.equal(realizedOf(bought.id), null);
 });

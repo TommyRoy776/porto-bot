@@ -8,7 +8,7 @@ import { confirmModal, typedMatches } from '../components/confirmModal.js';
 import { logTx } from '../components/log.js';
 import { UserError } from '../components/userError.js';
 import { parseLookupTicker } from '../components/validate.js';
-import { deleteUserTickerRows } from '../queries/transactions.js';
+import { clearTicker } from '../components/userLedger.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
@@ -24,10 +24,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.showModal(confirmModal(`clear:${ticker}`, messages.clear.title(ticker), ticker));
 }
 
-// Deleting every row for a ticker cannot leave any ticker negative, so this skips replay validation.
 export async function modal(interaction: ModalSubmitInteraction, [ticker]: string[]) {
   if (!typedMatches(interaction, ticker)) throw new UserError(messages.confirmMismatch);
-  const count = deleteUserTickerRows(interaction.user.id, ticker);
+  const count = clearTicker(interaction.user.id, ticker);
   logTx('clear', interaction.user.id, `${ticker} rows=${count}`);
   await interaction.reply({ content: messages.clear.done(ticker, count), flags: MessageFlags.Ephemeral });
 }

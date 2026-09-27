@@ -1,9 +1,12 @@
 import { ActivityType, Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { loadCommands } from './loadCommands.js';
+import { rebuildAll } from './components/userLedger.js';
 import { route } from './router.js';
 import { version } from './version.js';
 
+// Recompute stored holdings from the ledger, which fills them on the first boot after an upgrade.
+rebuildAll();
 const commands = await loadCommands();
 // The version shows as the bot's custom status in the member list, because hosts like TrueNAS do
 // not show which image tag is running. Sent on every (re)connect, so it survives gateway resumes.

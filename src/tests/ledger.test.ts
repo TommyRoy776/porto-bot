@@ -121,16 +121,16 @@ test('within a day, replay orders by created_at, then id', () => {
   assert.equal(replay([late, early]).ok, true);
 });
 
-test('history records shares held of that ticker after each row, in replay order', () => {
+test('history records the position held before and after each row, in replay order', () => {
   const b = buy(5, 30, 1);
   const sp = split(3, 2, 2);
   const s = sell(3, 30, 3);
   const result = replay([s, sp, b]);
   assert.ok(result.ok);
   assert.deepEqual(result.history, [
-    { tx: b, shares: 5, realized: null },
-    { tx: sp, shares: 8, realized: null },
-    { tx: s, shares: 5, realized: 3 * (30 - 20) / 100 },
+    { tx: b, before: 0, after: 5, realized: null },
+    { tx: sp, before: 5, after: 8, realized: null },
+    { tx: s, before: 8, after: 5, realized: 3 * (30 - 20) / 100 },
   ]);
 });
 

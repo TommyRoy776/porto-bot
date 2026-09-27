@@ -1,10 +1,10 @@
 import { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { config } from '../config.js';
 import { logTx } from '../components/log.js';
-import { commitChange, ledgerOf } from '../components/userLedger.js';
+import { commitChange } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
 import { parseDate, parseRatio, parseTicker } from '../components/validate.js';
-import { usersWithTicker } from '../queries/transactions.js';
+import { holdersOf } from '../queries/holdings.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
@@ -27,9 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (!ratio) throw new UserError(messages.split.invalidRatio);
   const trade_date = parseDate(undefined, config.tz)!;
 
-  const holders = usersWithTicker(ticker).filter((userId) =>
-    ledgerOf(userId).positions.some((p) => p.sec_type === 'STOCK' && p.ticker === ticker),
-  );
+  const holders = holdersOf(ticker);
   for (const user_id of holders) {
     commitChange(user_id, {
       insert: {
