@@ -1,4 +1,4 @@
-import { date, money, total } from '../components/format.js';
+import { date, money, shares, total } from '../components/format.js';
 import type { Position, Tx } from '../components/ledger.js';
 
 // Every transaction renders the same way, in two lines:
@@ -9,18 +9,19 @@ import type { Position, Tx } from '../components/ledger.js';
 // Rows that have no price, like splits, put their detail on the first line and drop the total.
 // New transaction types (V2 options) follow the same shape: "**BUY** 2 × CALL of **AAPL** ...".
 // The paradigm is documented in CLAUDE.md; keep it in sync.
-const action = (tx: Tx, shares?: [number, number]) =>
+// Share counts are in hundredths (1278 = 12.78 shares), so money totals divide by 100.
+const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'
     ? `**SPLIT** ${tx.split_to}:${tx.split_from} of **${tx.ticker}**` +
-      (shares ? ` — ${shares[0]} → ${shares[1]} shares` : '')
-    : `**${tx.side}** ${tx.shares} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
+      (counts ? ` — ${shares(counts[0])} → ${shares(counts[1])} shares` : '')
+    : `**${tx.side}** ${shares(tx.shares!)} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
 
 const meta = (tx: Tx) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
-    : `\`${tx.ref}\` · total ${total(tx.shares! * tx.price!)} · ${date(tx.trade_date)}`;
+    : `\`${tx.ref}\` · total ${total((tx.shares! * tx.price!) / 100)} · ${date(tx.trade_date)}`;
 
-const txLine = (tx: Tx, shares?: [number, number]) => `${action(tx, shares)}\n${meta(tx)}`;
+const txLine = (tx: Tx, counts?: [number, number]) => `${action(tx, counts)}\n${meta(tx)}`;
 
 // Thin rule between transactions in a list, so entries do not run together.
 const SEPARATOR = '\n────────────\n';
@@ -45,7 +46,7 @@ export const messages = {
 
   options: {
     ticker: 'Ticker symbol, e.g. AAPL',
-    shares: 'Number of whole shares',
+    shares: 'Number of shares, up to 2 decimals, e.g. 12.78',
     price: 'Price per share',
     date: 'Trade date as YYYY-MM-DD. Defaults to today',
     user: 'Whose transactions to show. Defaults to you',
@@ -54,7 +55,7 @@ export const messages = {
 
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
   invalidRef: 'Transaction IDs look like `BS01` (buy), `SS01` (sell) or `SL01` (split).',
-  invalidShares: 'Shares must be a whole number above 0.',
+  invalidShares: 'Shares must be above 0 with at most 2 decimals, like `12.78`.',
   invalidPrice: 'Price must be a number, 0 or more.',
   invalidDate: 'Dates must be `YYYY-MM-DD` and not in the future.',
   oversold: (tx: Tx) =>
@@ -127,7 +128,7 @@ export const messages = {
 // A holdings row for the table in /portfolio and /position: ticker, shares, average cost, cost basis.
 export const holdingRow = (position: Position) => [
   position.ticker,
-  String(position.shares),
+  shares(position.shares),
   money(position.avgCost),
-  total(position.shares * position.avgCost),
+  total((position.shares * position.avgCost) / 100),
 ];

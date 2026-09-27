@@ -7,6 +7,7 @@ export type Tx = {
   sec_type: 'STOCK' | 'SPLIT';
   side: 'BUY' | 'SELL' | null;
   ticker: string;
+  // Whole hundredths of a share: 1278 is 12.78 shares (migrations/2026092615_alter_shares_values.sql).
   shares: number | null;
   price: number | null;
   trade_date: number;
@@ -34,7 +35,8 @@ export function replay(rows: Tx[]): Replay {
     const pos = held.get(tx.ticker) ?? { shares: 0, avgCost: 0 };
 
     if (tx.sec_type === 'SPLIT') {
-      // Half-up; the fractional share is discarded along with its cost.
+      // shares is in hundredths, so this rounds half-up to the nearest 0.01 share; anything
+      // smaller is discarded along with its cost.
       pos.shares = Math.round((pos.shares * tx.split_to!) / tx.split_from!);
       pos.avgCost = (pos.avgCost * tx.split_from!) / tx.split_to!;
     } else if (tx.side === 'BUY') {
