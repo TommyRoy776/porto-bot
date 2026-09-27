@@ -230,7 +230,7 @@ What the options mean:
 | `amount` | Number of coins, like `0.00034`, up to 8 decimal places                                 |
 | `right`  | Options only: `Call` or `Put`                                                           |
 | `strike` | Options only: the strike price per share, like `150`                                    |
-| `expiry` | Options only: the expiry date as `YYYY-MM-DD`, today or later                           |
+| `expiry` | Options only: the expiry date as `YYYY-MM-DD`. When buying, today or later              |
 | `contracts` | Options only: number of contracts, a whole number                                    |
 | `price`  | Price per share or coin in USD, above 0, up to 8 decimals. A leading `$` is optional. For options, the price per share as quoted: a contract costs 100 times this |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
@@ -243,8 +243,8 @@ A few things worth knowing:
 
 - Crypto amounts are kept to 8 decimal places but shown to 3, cut off rather than rounded.
 - Each option contract (ticker, call or put, strike and expiry) is its own holding. Contracts are never exercised; to
-  close one, record a `/sell option` for the same contract. An expired contract cannot be bought or sold, so remove
-  those with `/delete`. `/amend` can change an option's contracts, price and date, but not the contract itself.
+  close one, record a `/sell option` for the same contract, which also works after it has expired. An expired contract
+  cannot be bought. `/amend` can change an option's contracts, price and date, but not the contract itself.
 - Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. Crypto
   uses `BCC01` and `SCC01`, and options `BOC01`, `BOP01`, `SOC01` and `SOP01` (call or put). That is what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
   is `SSS01` and `SL01` is `XSS01`.

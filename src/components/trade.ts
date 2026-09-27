@@ -13,7 +13,7 @@ import { realizedOf } from '../queries/holdings.js';
 import { commitChange } from './userLedger.js';
 import { UserError } from './userError.js';
 import { toScaled, type Holdable } from './units.js';
-import { MAX_PRICE, parseCryptoTicker, parseDate, parseExpiry, parseTicker, toPrice } from './validate.js';
+import { MAX_PRICE, parseCalendarDate, parseCryptoTicker, parseDate, parseExpiry, parseTicker, toPrice } from './validate.js';
 
 type Side = 'BUY' | 'SELL';
 
@@ -29,7 +29,7 @@ type TypeFields = Omit<NewTx, 'user_id' | 'side' | 'trade_date'>;
 type SecurityType = {
   sec_type: Holdable;
   options(sub: SlashCommandSubcommandBuilder, side: Side): SlashCommandSubcommandBuilder;
-  read(options: TradeOptions, tz: string, now: Date): TypeFields;
+  read(options: TradeOptions, side: Side, tz: string, now: Date): TypeFields;
 };
 
 // The columns only splits and options use.
@@ -145,7 +145,7 @@ const types: Record<string, SecurityType> = {
             .setMinValue(0.00000001)
             .setMaxValue(MAX_PRICE),
         ),
-    read(options, tz, now) {
+    read(options, side, tz, now) {
       const ticker = parseTicker(options.getString('ticker', true));
       if (!ticker) throw new UserError(messages.invalidTicker);
       // Discord only offers the two choices, but a stale client could still send anything.
@@ -153,7 +153,10 @@ const types: Record<string, SecurityType> = {
       if (opt_right !== 'CALL' && opt_right !== 'PUT') throw new UserError(messages.invalidRight);
       const strike = toPrice(options.getNumber('strike', true));
       if (strike === null) throw new UserError(messages.invalidStrike);
-      const expiry = parseExpiry(options.getString('expiry', true), tz, now);
+      // Only a buy opens a position, so only a buy needs a contract that has not expired. A sell must
+      // match a contract already held (replay rejects anything else), and may close one after expiry.
+      const typed = options.getString('expiry', true);
+      const expiry = side === 'BUY' ? parseExpiry(typed, tz, now) : parseCalendarDate(typed);
       if (expiry === null) throw new UserError(messages.invalidExpiry);
       const shares = toScaled(options.getInteger('contracts', true), 'OPTION');
       if (shares === null) throw new UserError(messages.invalidContracts);
@@ -165,7 +168,7 @@ const types: Record<string, SecurityType> = {
 
 // The row a /buy or /sell subcommand would insert, validated. `now` is only overridden by tests.
 export function tradeRow(user_id: string, side: Side, type: string, options: TradeOptions, tz: string, now = new Date()): NewTx {
-  const fields = types[type].read(options, tz, now);
+  const fields = types[type].read(options, side, tz, now);
   const trade_date = parseDate(options.getString('date') ?? undefined, tz, now);
   if (trade_date === null) throw new UserError(messages.invalidDate);
   return { user_id, side, trade_date, ...fields };

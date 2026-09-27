@@ -23,24 +23,24 @@ export function parseLookupTicker(input: string) {
 // Today's calendar date as YYYY-MM-DD in the given IANA time zone (en-CA formats as YYYY-MM-DD).
 const todayIn = (tz: string, now: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
 
-// YYYY-MM-DD, today or earlier in `tz`, to unix seconds at 12:00 UTC (see trade_date in the schema).
-export function parseDate(input: string | undefined, tz: string, now = new Date()) {
-  const date = input?.trim() ?? todayIn(tz, now);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayIn(tz, now)) return null;
+// Any real calendar date as YYYY-MM-DD, to unix seconds at 12:00 UTC (see trade_date in the schema).
+export function parseCalendarDate(input: string) {
+  const date = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const ms = Date.parse(`${date}T12:00:00Z`);
   // Date.parse rolls impossible dates like 2025-02-29 forward, so check it round-trips.
-  if (Number.isNaN(ms) || toDateString(ms / 1000) !== date) return null;
-  return ms / 1000;
+  return Number.isNaN(ms) || toDateString(ms / 1000) !== date ? null : ms / 1000;
 }
 
-// Option expiry as YYYY-MM-DD, today or later in `tz` (the opposite of parseDate), to unix seconds
-// at 12:00 UTC.
+// A trade date: today or earlier in `tz`, today when left out.
+export function parseDate(input: string | undefined, tz: string, now = new Date()) {
+  const date = input?.trim() ?? todayIn(tz, now);
+  return date > todayIn(tz, now) ? null : parseCalendarDate(date);
+}
+
+// An expiry for a new option position: today or later in `tz`, the opposite of parseDate.
 export function parseExpiry(input: string, tz: string, now = new Date()) {
-  const date = input.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < todayIn(tz, now)) return null;
-  const ms = Date.parse(`${date}T12:00:00Z`);
-  if (Number.isNaN(ms) || toDateString(ms / 1000) !== date) return null;
-  return ms / 1000;
+  return input.trim() < todayIn(tz, now) ? null : parseCalendarDate(input);
 }
 
 export const toDateString = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 10);
