@@ -161,24 +161,24 @@ That's it. The bot is ready to use.
 
 What the options mean:
 
-| Field    | Meaning                                                                    |
-|----------|-----------------------------------------------------------------------------|
-| `ticker` | Stock symbol, like `AAPL`                                                  |
+| Field    | Meaning                                                                                 |
+|----------|-----------------------------------------------------------------------------------------|
+| `ticker` | Stock symbol, like `AAPL`                                                               |
 | `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
-| `price`  | Price per share in USD. A leading `$` is optional                          |
-| `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Leave it out for today |
-| `user`   | Whose transactions to show. Defaults to you                               |
-| `id`     | A transaction reference, like `BS01`                                       |
-| `ratio`  | The split, written as new:old, like `3:2` or `1:10`                        |
+| `price`  | Price per share in USD. A leading `$` is optional                                       |
+| `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
+| `user`   | Whose transactions to show. Defaults to you                                             |
+| `id`     | A transaction reference, like `BS01`                                                    |
+| `ratio`  | The split, written as new:old, like `3:2` or `1:10`                                     |
 
 
 A few things worth knowing:
 
 - Every transaction gets a short ID like `BS01` (buy), `SS01` (sell) or `SL01` (split), shown beside it. That is what
   you type into `/amend` and `/delete`.
-- Mistakes are private. If you get something wrong, only you see the error message.
+- Deleting or amending a transaction will **not** change or remove the message already in the channel.
 - The bot never lets you sell more shares than you own, or edit your history into an impossible state.
-- `/reset` and `/split` are limited to members with the **Manage Server** permission. You can change who may use them in
+- `/reset` and `/split` are limited to members with the **Manage Server** permission (generally moderators). You can change who may use them in
   **Server Settings → Integrations**.
 
 ---
@@ -200,8 +200,7 @@ the [releases page](https://github.com/aer35/porto-bot/releases), for example:
     image: ghcr.io/aer35/porto-bot:1.0.0
 ```
 
-Releases marked **Pre-release** are test builds. Small fixes do not get their own release; they are listed under *
-*Patches** inside the release they fix.
+Releases marked **Pre-release** are test builds. Small fixes do not get their own release; they are listed under *Patches* inside the release they fix.
 
 ---
 
