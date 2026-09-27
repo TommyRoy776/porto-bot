@@ -90,3 +90,14 @@ test('an option holdings row names the contract and multiplies the cost basis by
     ['AAPL PUT $150.00 2026-01-16', '2', '$3.20', '$640.00'],
   );
 });
+
+test('a sell shows its realized P/L when known, signed', () => {
+  const tx = {
+    id: 1, ref: 'SSS02', user_id: 'u', sec_type: 'STOCK' as const, side: 'SELL' as const, ticker: 'AAPL',
+    shares: 500, price: 180, trade_date: 1767268800, created_at: 0, split_from: null, split_to: null,
+    opt_right: null, strike: null, expiry: null,
+  };
+  assert.equal(messages.txLine(tx, { realized: 150 }).split('\n')[1], '`SSS02` · total $900.00 · P/L +$150.00 · <t:1767268800:D>');
+  assert.equal(messages.txLine(tx, { realized: -0.5 }).split('\n')[1], '`SSS02` · total $900.00 · P/L -$0.50 · <t:1767268800:D>');
+  assert.equal(messages.txLine(tx).split('\n')[1], '`SSS02` · total $900.00 · <t:1767268800:D>');
+});

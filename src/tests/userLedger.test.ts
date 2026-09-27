@@ -4,7 +4,7 @@ import type { NewTx } from '../components/ledger.js';
 
 // config.ts validates env at import, so set it before loading anything that opens the database.
 Object.assign(process.env, { DISCORD_TOKEN: 't', DISCORD_CLIENT_ID: 'c', DISCORD_GUILD_ID: 'g', DB_PATH: ':memory:' });
-const { commitChange, ledgerOf } = await import('../components/userLedger.js');
+const { commitChange, ledgerOf, realizedOf } = await import('../components/userLedger.js');
 const { userRows } = await import('../queries/transactions.js');
 const { UserError } = await import('../components/userError.js');
 
@@ -76,4 +76,11 @@ test('option trades get BOC/BOP/SOC/SOP references by side and right', () => {
     (tx) => commitChange('o', { insert: tx })!.ref.slice(0, 3),
   );
   assert.deepEqual(refs, ['BOC', 'BOP', 'SOC', 'SOP']);
+});
+
+test('realizedOf gives a stored sell its P/L, and anything else null', () => {
+  const bought = commitChange('p', { insert: { ...trade('p', 'BUY', 1000), price: 10 } })!;
+  const sold = commitChange('p', { insert: { ...trade('p', 'SELL', 400), price: 12.5 } })!;
+  assert.equal(realizedOf(sold), 10); // 4 shares × $2.50
+  assert.equal(realizedOf(bought), null);
 });

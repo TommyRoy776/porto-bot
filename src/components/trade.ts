@@ -9,7 +9,7 @@ import { config } from '../config.js';
 import { messages } from '../strings/messages.js';
 import type { NewTx } from './ledger.js';
 import { tickerAutocomplete } from './tickerAutocomplete.js';
-import { commitChange } from './userLedger.js';
+import { commitChange, realizedOf } from './userLedger.js';
 import { UserError } from './userError.js';
 import { toScaled, type Holdable } from './units.js';
 import { MAX_PRICE, parseCryptoTicker, parseDate, parseExpiry, parseTicker, toPrice } from './validate.js';
@@ -187,7 +187,9 @@ export function trade(side: Side) {
     const userId = interaction.user.id;
     const row = tradeRow(userId, side, interaction.options.getSubcommand(), interaction.options, config.tz);
     const stored = commitChange(userId, { insert: row })!;
-    await interaction.reply({ embeds: [new EmbedBuilder().setDescription(messages.recorded(userId, stored))] });
+    await interaction.reply({
+      embeds: [new EmbedBuilder().setDescription(messages.recorded(userId, stored, realizedOf(stored)))],
+    });
   }
 
   // Only /sell autocompletes, from what the user holds of that subcommand's type.

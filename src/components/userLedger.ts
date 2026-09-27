@@ -11,6 +11,9 @@ export function ledgerOf(userId: string) {
   return result;
 }
 
+// Realized P/L of a stored SELL row, from a replay of its owner's ledger; null for anything else.
+export const realizedOf = (tx: Tx) => ledgerOf(tx.user_id).history.find((h) => h.tx.id === tx.id)?.realized ?? null;
+
 // The one path for changes that can affect share counts: apply to a hypothetical copy of the
 // user's ledger, reject if any ticker would go negative, and only then write.
 // Returns the row as stored for inserts and updates.

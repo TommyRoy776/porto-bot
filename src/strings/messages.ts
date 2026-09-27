@@ -29,12 +29,20 @@ const action = (tx: Tx, counts?: [number, number]) =>
       (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} shares` : '')
     : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unit(tx)} of **${tx.ticker}**${contract(tx)} @ ${money(tx.price!)}`;
 
-const meta = (tx: Tx) =>
+// Realized P/L with its sign, e.g. "+$150.00" or "-$0.50".
+const signed = (n: number) => (n < 0 ? '-' : '+') + total(Math.abs(n));
+
+const meta = (tx: Tx, realized?: number | null) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
-    : `\`${tx.ref}\` · total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · ${date(tx.trade_date)}`;
+    : `\`${tx.ref}\` · total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · ` +
+      (realized != null ? `P/L ${signed(realized)} · ` : '') +
+      date(tx.trade_date);
 
-const txLine = (tx: Tx, counts?: [number, number]) => `${action(tx, counts)}\n${meta(tx)}`;
+// A split's `counts` are the shares held before and after it; a sell's `realized` is its P/L. Both
+// come from replay (History), so a line drawn from a bare row leaves them out.
+type Extra = { counts?: [number, number]; realized?: number | null };
+const txLine = (tx: Tx, { counts, realized }: Extra = {}) => `${action(tx, counts)}\n${meta(tx, realized)}`;
 
 // Thin rule between transactions in a list, so entries do not run together.
 const SEPARATOR = '\n────────────\n';
@@ -104,7 +112,7 @@ export const messages = {
     crypto: 'Record crypto you sold',
     option: 'Record option contracts you sold',
   } as Record<string, string>,
-  recorded: (userId: string, tx: Tx) => `**Trade recorded**\n<@${userId}> ${txLine(tx)}`,
+  recorded: (userId: string, tx: Tx, realized: number | null) => `**Trade recorded**\n<@${userId}> ${txLine(tx, { realized })}`,
 
   portfolio: {
     description: 'Show holdings and recent transactions',
@@ -143,7 +151,8 @@ export const messages = {
     },
     split: 'Split rows cannot be amended. Use /delete to undo a split.',
     invalidSide: 'Side must be `BUY` or `SELL`.',
-    done: (userId: string, tx: Tx) => `**Transaction amended**\n<@${userId}> ${txLine(tx)}`,
+    done: (userId: string, tx: Tx, realized: number | null) =>
+      `**Transaction amended**\n<@${userId}> ${txLine(tx, { realized })}`,
   },
 
   reset: {
