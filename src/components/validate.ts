@@ -13,6 +13,13 @@ export function parseCryptoTicker(input: string) {
   return ticker.includes('-') ? ticker : `${ticker}-USD`;
 }
 
+// A ticker typed to look up existing rows (/position, /clear), in any stored shape: AAPL, BRK.B,
+// BTC-USD. Not normalized, since it has to match what is stored exactly.
+export function parseLookupTicker(input: string) {
+  const ticker = input.trim().toUpperCase();
+  return /^[A-Z0-9.-]{1,15}$/.test(ticker) ? ticker : null;
+}
+
 // Today's calendar date as YYYY-MM-DD in the given IANA time zone (en-CA formats as YYYY-MM-DD).
 const todayIn = (tz: string, now: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
 

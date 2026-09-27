@@ -11,8 +11,8 @@ import type { NewTx } from './ledger.js';
 import { tickerAutocomplete } from './tickerAutocomplete.js';
 import { commitChange } from './userLedger.js';
 import { UserError } from './userError.js';
-import { toScaled } from './units.js';
-import { MAX_PRICE, parseDate, parseTicker, toPrice } from './validate.js';
+import { toScaled, type Holdable } from './units.js';
+import { MAX_PRICE, parseCryptoTicker, parseDate, parseTicker, toPrice } from './validate.js';
 
 type Side = 'BUY' | 'SELL';
 
@@ -26,42 +26,78 @@ type TypeFields = Omit<NewTx, 'user_id' | 'side' | 'trade_date'>;
 // optional date is added after them, since Discord lists required options first); `read`
 // validates what was typed, throwing a UserError for anything invalid.
 type SecurityType = {
+  sec_type: Holdable;
   options(sub: SlashCommandSubcommandBuilder, side: Side): SlashCommandSubcommandBuilder;
   read(options: TradeOptions): TypeFields;
 };
 
+// Ticker, quantity and price options, shared by stock and crypto. Only /sell autocompletes the
+// ticker, from what the user already holds.
+const tickerQuantityPrice = (
+  sub: SlashCommandSubcommandBuilder,
+  side: Side,
+  ticker: { description: string; maxLength: number },
+  quantity: { name: string; description: string; min: number },
+  priceDescription: string,
+) =>
+  sub
+    .addStringOption((o) =>
+      o
+        .setName('ticker')
+        .setDescription(ticker.description)
+        .setRequired(true)
+        .setMaxLength(ticker.maxLength)
+        .setAutocomplete(side === 'SELL'),
+    )
+    .addNumberOption((o) =>
+      o.setName(quantity.name).setDescription(quantity.description).setRequired(true).setMinValue(quantity.min),
+    )
+    .addNumberOption((o) =>
+      o.setName('price').setDescription(priceDescription).setRequired(true).setMinValue(0.00000001).setMaxValue(MAX_PRICE),
+    );
+
+// Discord number options cannot limit decimal places, so the quantity and price rules are checked here.
+function readPrice(options: TradeOptions) {
+  const price = toPrice(options.getNumber('price', true));
+  if (price === null) throw new UserError(messages.invalidPrice);
+  return price;
+}
+
 const types: Record<string, SecurityType> = {
   stock: {
+    sec_type: 'STOCK',
     options: (sub, side) =>
-      sub
-        .addStringOption((o) =>
-          o
-            .setName('ticker')
-            .setDescription(messages.options.ticker)
-            .setRequired(true)
-            .setMaxLength(6)
-            .setAutocomplete(side === 'SELL'),
-        )
-        .addNumberOption((o) =>
-          o.setName('shares').setDescription(messages.options.shares).setRequired(true).setMinValue(0.01),
-        )
-        .addNumberOption((o) =>
-          o
-            .setName('price')
-            .setDescription(messages.options.price)
-            .setRequired(true)
-            .setMinValue(0.00000001)
-            .setMaxValue(MAX_PRICE),
-        ),
+      tickerQuantityPrice(
+        sub,
+        side,
+        { description: messages.options.ticker, maxLength: 6 },
+        { name: 'shares', description: messages.options.shares, min: 0.01 },
+        messages.options.price,
+      ),
     read(options) {
       const ticker = parseTicker(options.getString('ticker', true));
       if (!ticker) throw new UserError(messages.invalidTicker);
-      // Discord number options cannot limit decimal places, so the 2-decimal rule is checked here.
       const shares = toScaled(options.getNumber('shares', true), 'STOCK');
       if (shares === null) throw new UserError(messages.invalidShares);
-      const price = toPrice(options.getNumber('price', true));
-      if (price === null) throw new UserError(messages.invalidPrice);
-      return { sec_type: 'STOCK', ticker, shares, price, split_from: null, split_to: null };
+      return { sec_type: 'STOCK', ticker, shares, price: readPrice(options), split_from: null, split_to: null };
+    },
+  },
+  crypto: {
+    sec_type: 'CRYPTO',
+    options: (sub, side) =>
+      tickerQuantityPrice(
+        sub,
+        side,
+        { description: messages.options.cryptoTicker, maxLength: 15 },
+        { name: 'amount', description: messages.options.amount, min: 0.00000001 },
+        messages.options.coinPrice,
+      ),
+    read(options) {
+      const ticker = parseCryptoTicker(options.getString('ticker', true));
+      if (!ticker) throw new UserError(messages.invalidCryptoTicker);
+      const shares = toScaled(options.getNumber('amount', true), 'CRYPTO');
+      if (shares === null) throw new UserError(messages.invalidAmount);
+      return { sec_type: 'CRYPTO', ticker, shares, price: readPrice(options), split_from: null, split_to: null };
     },
   },
 };
@@ -94,8 +130,9 @@ export function trade(side: Side) {
     await interaction.reply({ embeds: [new EmbedBuilder().setDescription(messages.recorded(userId, stored))] });
   }
 
-  // Only /sell autocompletes, from what the user already holds.
-  const autocomplete = (interaction: AutocompleteInteraction) => tickerAutocomplete(interaction, interaction.user.id);
+  // Only /sell autocompletes, from what the user holds of that subcommand's type.
+  const autocomplete = (interaction: AutocompleteInteraction) =>
+    tickerAutocomplete(interaction, interaction.user.id, types[interaction.options.getSubcommand()].sec_type);
 
   return { data, execute, autocomplete };
 }

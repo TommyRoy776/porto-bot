@@ -14,7 +14,7 @@ import { commitChange } from '../components/userLedger.js';
 import { UserError } from '../components/userError.js';
 import { parseRef } from '../components/ref.js';
 import { parseQuantity, quantityText } from '../components/units.js';
-import { parseDate, parsePrice, parseTicker, priceText, toDateString } from '../components/validate.js';
+import { parseCryptoTicker, parseDate, parsePrice, parseTicker, priceText, toDateString } from '../components/validate.js';
 import { messages } from '../strings/messages.js';
 
 export const data = new SlashCommandBuilder()
@@ -36,6 +36,25 @@ const field = (id: string, label: string, value: string, min: number, max: numbe
         .setMaxLength(max),
     );
 
+// What differs between editing a stock row and a crypto row: how the ticker is checked, the label
+// and length limits of the quantity field, and the error shown for each.
+const editable = {
+  STOCK: {
+    parseTicker,
+    tickerMax: 6,
+    invalidTicker: messages.invalidTicker,
+    quantityLabel: messages.amend.fields.shares,
+    invalidQuantity: messages.invalidShares,
+  },
+  CRYPTO: {
+    parseTicker: parseCryptoTicker,
+    tickerMax: 15,
+    invalidTicker: messages.invalidCryptoTicker,
+    quantityLabel: messages.amend.fields.amount,
+    invalidQuantity: messages.invalidAmount,
+  },
+};
+
 export async function execute(interaction: ChatInputCommandInteraction) {
   const ref = parseRef(interaction.options.getString('id', true));
   if (!ref) throw new UserError(messages.invalidRef);
@@ -44,15 +63,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (row.sec_type === 'SPLIT') throw new UserError(messages.amend.split);
 
   const labels = messages.amend.fields;
+  const type = editable[row.sec_type];
   await interaction.showModal(
     new ModalBuilder()
       .setCustomId(`amend:${row.ref}`)
       .setTitle(messages.amend.title(row.ref))
       .addLabelComponents(
-        field('ticker', labels.ticker, row.ticker, 1, 6),
+        field('ticker', labels.ticker, row.ticker, 1, type.tickerMax),
         field('side', labels.side, row.side!, 3, 4),
         // Stored scaled; shown as the decimal the user typed, which parseQuantity reads back.
-        field('shares', labels.shares, quantityText(row.shares!, 'STOCK'), 1, 20),
+        field('shares', type.quantityLabel, quantityText(row.shares!, row.sec_type), 1, 20),
         field('price', labels.price, priceText(row.price!), 1, 20),
         field('date', labels.date, toDateString(row.trade_date), 10, 10),
       ),
@@ -60,20 +80,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function modal(interaction: ModalSubmitInteraction, [ref]: string[]) {
+  // Look the row up first, since its type decides how the fields are read. Also a re-check: the
+  // row may have been deleted while the modal was open.
+  const row = ownRow(ref, interaction.user.id);
+  if (row.sec_type === 'SPLIT') throw new UserError(messages.amend.split);
+  const type = editable[row.sec_type];
   const value = (name: string) => interaction.fields.getTextInputValue(name);
-  const ticker = parseTicker(value('ticker'));
-  if (!ticker) throw new UserError(messages.invalidTicker);
+  const ticker = type.parseTicker(value('ticker'));
+  if (!ticker) throw new UserError(type.invalidTicker);
   const side = value('side').trim().toUpperCase();
   if (side !== 'BUY' && side !== 'SELL') throw new UserError(messages.amend.invalidSide);
-  const shares = parseQuantity(value('shares'), 'STOCK');
-  if (shares === null) throw new UserError(messages.invalidShares);
+  const shares = parseQuantity(value('shares'), row.sec_type);
+  if (shares === null) throw new UserError(type.invalidQuantity);
   const price = parsePrice(value('price'));
   if (price === null) throw new UserError(messages.invalidPrice);
   const trade_date = parseDate(value('date'), config.tz);
   if (trade_date === null) throw new UserError(messages.invalidDate);
 
-  // Re-check: the row may have been deleted while the modal was open.
-  const row = ownRow(ref, interaction.user.id);
   const stored = commitChange(interaction.user.id, { update: { ...row, ticker, side, shares, price, trade_date } })!;
   await interaction.reply({ embeds: [new EmbedBuilder().setDescription(messages.amend.done(interaction.user.id, stored))] });
 }
