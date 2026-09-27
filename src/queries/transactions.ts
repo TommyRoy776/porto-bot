@@ -83,8 +83,6 @@ export const deleteUserTickerRows = (userId: string, ticker: string) =>
 export const stockRowsForTicker = (ticker: string) =>
   db.prepare("SELECT * FROM transactions WHERE ticker = ? AND sec_type IN ('STOCK', 'SPLIT')").all(ticker) as Tx[];
 
-// Users with any row for a ticker. Some may have sold out; callers replay to find current holders.
-export const usersWithTicker = (ticker: string) =>
-  (db.prepare('SELECT DISTINCT user_id FROM transactions WHERE ticker = ?').all(ticker) as { user_id: string }[]).map(
-    (r) => r.user_id,
-  );
+// Every member with any transaction, for rebuilding stored replay results at startup.
+export const allUserIds = () =>
+  (db.prepare('SELECT DISTINCT user_id FROM transactions').all() as { user_id: string }[]).map((r) => r.user_id);

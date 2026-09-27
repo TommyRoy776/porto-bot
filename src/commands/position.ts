@@ -9,7 +9,7 @@ import { table } from '../components/format.js';
 import { historyLines } from '../components/historyLines.js';
 import { pageButtons } from '../components/pageButtons.js';
 import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
-import { ledgerOf } from '../components/userLedger.js';
+import { holdingsOf, tickerHistory } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { parseLookupTicker } from '../components/validate.js';
 import { holdingRow, messages } from '../strings/messages.js';
@@ -24,21 +24,16 @@ export const data = new SlashCommandBuilder()
   )
   .addUserOption((o) => o.setName('user').setDescription(messages.options.user));
 
-// Page `page` (clamped, since rows may have changed since the buttons were sent), newest first.
-function render(userId: string, ticker: string, page: number) {
-  const { positions, history } = ledgerOf(userId);
-  const lines = historyLines(history.filter(({ tx }) => tx.ticker === ticker)).reverse();
-  if (!lines.length) throw new UserError(messages.position.none(userId, ticker));
+// Page `page` of the member's transactions for the ticker, newest first.
+function render(userId: string, ticker: string, requested: number) {
+  const { rows, page, pageCount } = tickerHistory(userId, ticker, PAGE_SIZE, requested);
+  if (!pageCount) throw new UserError(messages.position.none(userId, ticker));
 
   // The current holdings under this ticker, matching the holdings table in /portfolio.
-  const held = positions.filter((p) => p.ticker === ticker);
+  const held = holdingsOf(userId).filter((p) => p.ticker === ticker);
   const summary = held.length ? table([messages.portfolio.columns, ...held.map(holdingRow)]) : messages.position.noShares;
 
-  const pageCount = Math.ceil(lines.length / PAGE_SIZE);
-  page = Math.min(Math.max(page, 0), pageCount - 1);
-  const embed = new EmbedBuilder().setDescription(
-    messages.position.body(userId, ticker, summary, lines.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)),
-  );
+  const embed = new EmbedBuilder().setDescription(messages.position.body(userId, ticker, summary, historyLines(rows)));
   if (pageCount === 1) return { embeds: [embed], components: [] };
   embed.setFooter({ text: messages.page(page, pageCount) });
   return { embeds: [embed], components: [pageButtons((p) => `position:${p}:${userId}:${ticker}`, page, pageCount)] };

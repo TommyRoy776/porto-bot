@@ -4,7 +4,8 @@ import type { NewTx } from '../components/ledger.js';
 
 // config.ts validates env at import, so set it before loading anything that opens the database.
 Object.assign(process.env, { DISCORD_TOKEN: 't', DISCORD_CLIENT_ID: 'c', DISCORD_GUILD_ID: 'g', DB_PATH: ':memory:' });
-const { commitChange, ledgerOf } = await import('../components/userLedger.js');
+const { commitChange } = await import('../components/userLedger.js');
+const { holdingsOf } = await import('../queries/holdings.js');
 const { convertToCrypto } = await import('../components/convertCrypto.js');
 const { userRows } = await import('../queries/transactions.js');
 
@@ -23,11 +24,11 @@ test('converts V1 stock rows for a coin into crypto rows at the crypto scale, fo
 
   assert.equal(convertToCrypto('BTC', 'BTC-USD'), 3);
 
-  assert.deepEqual(ledgerOf('a').positions, [
+  assert.deepEqual(holdingsOf('a'), [
     { sec_type: 'STOCK', ticker: 'AAPL', shares: 100, avgCost: 50_000, ...NOT_OPTION },
     { sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 200_000_000, avgCost: 50_000, ...NOT_OPTION },
   ]);
-  assert.deepEqual(ledgerOf('b').positions, [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 100_000_000, avgCost: 50_000, ...NOT_OPTION }]);
+  assert.deepEqual(holdingsOf('b'), [{ sec_type: 'CRYPTO', ticker: 'BTC-USD', shares: 100_000_000, avgCost: 50_000, ...NOT_OPTION }]);
   const refs = userRows('a').filter((r) => r.ticker === 'BTC-USD').map((r) => r.ref.slice(0, 3));
   assert.deepEqual(refs.sort(), ['BCC', 'SCC']);
 });

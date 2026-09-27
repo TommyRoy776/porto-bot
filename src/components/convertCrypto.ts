@@ -1,7 +1,8 @@
-import { db } from '../queries/db.js';
+import { inTransaction } from '../queries/db.js';
 import { stockRowsForTicker, updateRow } from '../queries/transactions.js';
 import { logRow } from './log.js';
 import { units } from './units.js';
+import { syncUser } from './userLedger.js';
 
 // One-time fix for installs that ran V1, which had no crypto: members recorded coins with /buy as
 // if they were stock, in hundredths. This turns every such row, for every member, into a CRYPTO
@@ -16,16 +17,12 @@ export function convertToCrypto(from: string, to: string) {
   if (rows.some((row) => row.sec_type === 'SPLIT')) {
     throw new Error(`${from} has split rows. Delete them with /delete, then run this again.`);
   }
-  db.exec('BEGIN');
-  try {
+  inTransaction(() => {
     for (const row of rows) {
       const shares = row.shares! * (units.CRYPTO.scale / units.STOCK.scale);
       logRow('convert', updateRow({ ...row, sec_type: 'CRYPTO', ticker: to, shares }));
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+    for (const userId of new Set(rows.map((row) => row.user_id))) syncUser(userId);
+  });
   return rows.length;
 }

@@ -10,7 +10,8 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import { ownRow } from '../components/ownRow.js';
-import { commitChange, realizedOf } from '../components/userLedger.js';
+import { commitChange } from '../components/userLedger.js';
+import { realizedOf } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { parseRef } from '../components/ref.js';
 import { parseQuantity, quantityText } from '../components/units.js';
@@ -108,6 +109,6 @@ export async function modal(interaction: ModalSubmitInteraction, [ref]: string[]
 
   const stored = commitChange(interaction.user.id, { update: { ...row, ticker, side, shares, price, trade_date } })!;
   await interaction.reply({
-    embeds: [new EmbedBuilder().setDescription(messages.amend.done(interaction.user.id, stored, realizedOf(stored)))],
+    embeds: [new EmbedBuilder().setDescription(messages.amend.done(interaction.user.id, stored, realizedOf(stored.id)))],
   });
 }
