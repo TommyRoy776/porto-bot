@@ -1,12 +1,18 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { loadCommands } from './loadCommands.js';
 import { route } from './router.js';
+import { version } from './version.js';
 
 const commands = await loadCommands();
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// The version shows as the bot's custom status in the member list, because hosts like TrueNAS do
+// not show which image tag is running. Sent on every (re)connect, so it survives gateway resumes.
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+  presence: { activities: [{ type: ActivityType.Custom, name: 'version', state: `v${version}` }] },
+});
 
-client.once(Events.ClientReady, (ready) => console.log(`Logged in as ${ready.user.tag}`));
+client.once(Events.ClientReady, (ready) => console.log(`Logged in as ${ready.user.tag}, v${version}`));
 client.on(Events.InteractionCreate, route(commands));
 
 // Docker stops containers with SIGTERM, which Node ignores as PID 1. Database writes are
