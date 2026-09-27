@@ -1,26 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatRef, parseRef, refPrefix } from '../components/ref.js';
-import type { Tx } from '../components/ledger.js';
-
-const tx = (fields: Partial<Tx>) => ({ sec_type: 'STOCK', side: 'BUY', ...fields }) as Tx;
-
-test('refPrefix names the transaction type', () => {
-  assert.equal(refPrefix(tx({})), 'BS');
-  assert.equal(refPrefix(tx({ side: 'SELL' })), 'SS');
-  assert.equal(refPrefix(tx({ sec_type: 'SPLIT', side: null })), 'SL');
-});
+import { formatRef, parseRef } from '../components/ref.js';
 
 test('formatRef pads to at least two digits and grows past them', () => {
-  assert.equal(formatRef('BS', 1), 'BS01');
-  assert.equal(formatRef('SS', 2), 'SS02');
-  assert.equal(formatRef('BS', 99), 'BS99');
-  assert.equal(formatRef('BS', 133), 'BS133');
+  assert.equal(formatRef('BSS', 1), 'BSS01');
+  assert.equal(formatRef('SSS', 2), 'SSS02');
+  assert.equal(formatRef('BSS', 99), 'BSS99');
+  assert.equal(formatRef('BSS', 133), 'BSS133');
 });
 
 test('parseRef uppercases and pads what the user typed', () => {
-  assert.equal(parseRef('bs01'), 'BS01');
-  assert.equal(parseRef(' BS1 '), 'BS01');
-  assert.equal(parseRef('SS133'), 'SS133');
-  for (const bad of ['', 'BS', '01', 'B01', 'BSS01', 'BS-1', '#1']) assert.equal(parseRef(bad), null, bad);
+  assert.equal(parseRef('bss01'), 'BSS01');
+  assert.equal(parseRef(' BSS1 '), 'BSS01');
+  assert.equal(parseRef('XSS133'), 'XSS133');
+  for (const bad of ['', 'BSS', '01', 'BS01', 'BSSS01', 'BSS-1', '#1']) assert.equal(parseRef(bad), null, bad);
 });

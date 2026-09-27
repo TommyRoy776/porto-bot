@@ -1,7 +1,7 @@
 // A row of the transactions table (migrations/001_transactions.sql).
 export type Tx = {
   id: number;
-  // Human-facing reference like BS01 (src/components/ref.ts).
+  // Human-facing reference like BSS01 (src/components/ref.ts).
   ref: string;
   user_id: string;
   sec_type: 'STOCK' | 'SPLIT';
