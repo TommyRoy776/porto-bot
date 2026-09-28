@@ -6,7 +6,7 @@ import {
 } from 'discord.js';
 import { historyLines } from '../components/historyLines.js';
 import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
-import { holdingsOf, tickerHistory } from '../queries/holdings.js';
+import { holdingsOf, historyPage } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { ANY_TICKER_MAX, parseLookupTicker } from '../components/validate.js';
 import { positionView } from '../components/views.js';
@@ -24,7 +24,7 @@ export const data = new SlashCommandBuilder()
 
 // Page `requested` of the member's transactions for the ticker, newest first.
 function render(userId: string, ticker: string, requested: number) {
-  const { rows, page, pageCount } = tickerHistory(userId, ticker, PAGE_SIZE, requested);
+  const { rows, page, pageCount } = historyPage(userId, ticker, PAGE_SIZE, requested);
   if (!pageCount) throw new UserError(messages.position.none(userId, ticker));
   const held = holdingsOf(userId).filter((p) => p.ticker === ticker);
   return positionView(userId, ticker, held, historyLines(rows), page, pageCount);

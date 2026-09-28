@@ -117,14 +117,21 @@ export const messages = {
   recorded: (userId: string, tx: Tx, realized: number | null) => `**Trade recorded**\n<@${userId}> ${txLine(tx, { realized })}`,
 
   portfolio: {
-    description: 'Show holdings and recent transactions',
+    description: 'Show holdings and transactions, one tab per security type',
     title: (userId: string) => `## Portfolio of <@${userId}>`,
-    holdings: '### Holdings',
-    noHoldings: 'No holdings.',
-    section: { STOCK: '**Stocks**', CRYPTO: '**Crypto**', OPTION: '**Options**' },
+    // Tab button labels, also the heading above the open tab.
+    tabs: { STOCK: 'Stocks', CRYPTO: 'Crypto', OPTION: 'Options', TX: 'Transactions' },
+    // The field label row above a holdings tab's rows, naming each field of holdingRow in order.
+    columns: {
+      STOCK: '-# Ticker · Shares · Avg cost · Cost basis',
+      CRYPTO: '-# Coin · Coins · Avg cost · Cost basis',
+      OPTION: '-# Contract · Contracts · Avg price · Cost basis',
+    },
+    empty: { STOCK: 'No stock holdings.', CRYPTO: 'No crypto holdings.', OPTION: 'No option holdings.' },
+    // /position's single total; /portfolio shows the open tab's cost beside the total of every holding.
     total: (cost: number) => `**Total cost basis** ${total(cost)}`,
-    recent: '### Recent transactions',
-    noRecent: 'None yet.',
+    tabTotal: (tabCost: number, allCost: number) => `**Cost basis** ${total(tabCost)} · **Total, all holdings** ${total(allCost)}`,
+    noTransactions: 'No transactions yet.',
   },
 
   position: {
@@ -180,8 +187,12 @@ export const messages = {
       `Applied a ${ratio.split_to}:${ratio.split_from} split to **${ticker}** for ${count} ${count === 1 ? 'member' : 'members'}.`,
   },
 
-  // One holding in /portfolio and /position: position, quantity, average cost, cost basis.
+  // One holding in /position: position, quantity, average cost, cost basis.
   holdingLine: (p: Position) =>
     `**${positionLabel(p)}** · ${formatQuantity(p.sec_type, p.shares)} ${quantityUnit[p.sec_type]} · ` +
     `avg ${money(p.avgCost)} · cost ${total(value(p.sec_type, p.shares, p.avgCost))}`,
+
+  // One holding in a /portfolio tab: the same fields as holdingLine, named once by portfolio.columns.
+  holdingRow: (p: Position) =>
+    `**${positionLabel(p)}** · ${formatQuantity(p.sec_type, p.shares)} · ${money(p.avgCost)} · ${total(value(p.sec_type, p.shares, p.avgCost))}`,
 };
