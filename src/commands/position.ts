@@ -9,10 +9,8 @@ import { tickerAutocomplete } from '../components/tickerAutocomplete.js';
 import { holdingsOf, historyPage } from '../queries/holdings.js';
 import { UserError } from '../components/userError.js';
 import { ANY_TICKER_MAX, parseLookupTicker } from '../components/validate.js';
-import { positionView } from '../components/views.js';
+import { PAGE_SIZE, positionView } from '../components/views.js';
 import { messages } from '../strings/messages.js';
-
-const PAGE_SIZE = 10;
 
 export const data = new SlashCommandBuilder()
   .setName('position')
