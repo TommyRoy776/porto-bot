@@ -1,4 +1,4 @@
-import { date, money, total } from '../components/format.js';
+import { date, money } from '../components/format.js';
 import type { Position, Tx } from '../components/ledger.js';
 import { formatQuantity, value, type Holdable } from '../components/units.js';
 import { shortDate, toDateString } from '../components/validate.js';
@@ -45,16 +45,16 @@ const action = (tx: Tx, counts?: [number, number]) =>
       (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} shares` : '')
     : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unit(tx)} of **${tx.ticker}**${contract(tx)} ` +
       // Crypto is bought for a total ("0.5 BTC for $30,000"); the price per coin goes on the next line.
-      (tx.sec_type === 'CRYPTO' ? `for ${total(value(tx.sec_type, tx.shares!, tx.price!))}` : `@ ${money(tx.price!)}`);
+      (tx.sec_type === 'CRYPTO' ? `for ${money(value(tx.sec_type, tx.shares!, tx.price!))}` : `@ ${money(tx.price!)}`);
 
 // Realized P/L with its sign, e.g. "+$150.00" or "-$0.50".
-const signed = (n: number) => (n < 0 ? '-' : '+') + total(Math.abs(n));
+const signed = (n: number) => (n < 0 ? '-' : '+') + money(Math.abs(n));
 
 const meta = (tx: Tx, realized?: number | null) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
     : `\`${tx.ref}\` · ` +
-      (tx.sec_type === 'CRYPTO' ? `${money(tx.price!)} per coin · ` : `total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · `) +
+      (tx.sec_type === 'CRYPTO' ? `${money(tx.price!)} per coin · ` : `total ${money(value(tx.sec_type, tx.shares!, tx.price!))} · `) +
       (realized != null ? `P/L ${signed(realized)} · ` : '') +
       date(tx.trade_date);
 
@@ -143,8 +143,8 @@ export const messages = {
     },
     empty: { STOCK: 'No stock holdings.', CRYPTO: 'No crypto holdings.', OPTION: 'No option holdings.' },
     // /position's single total; /portfolio shows the open tab's cost beside the total of every holding.
-    total: (cost: number) => `**Total cost basis** ${total(cost)}`,
-    tabTotal: (tabCost: number, allCost: number) => `**Cost basis** ${total(tabCost)} · **Total, all holdings** ${total(allCost)}`,
+    total: (cost: number) => `**Total cost basis** ${money(cost)}`,
+    tabTotal: (tabCost: number, allCost: number) => `**Cost basis** ${money(tabCost)} · **Total, all holdings** ${money(allCost)}`,
     noTransactions: 'No transactions yet.',
   },
 
@@ -205,9 +205,9 @@ export const messages = {
   // One holding in /position: position, quantity, average cost, cost basis.
   holdingLine: (p: Position) =>
     `${holdingLabel(p)} · ${formatQuantity(p.sec_type, p.shares)} ${quantityUnit[p.sec_type]} · ` +
-    `avg ${money(p.avgCost)} · cost ${total(value(p.sec_type, p.shares, p.avgCost))}`,
+    `avg ${money(p.avgCost)} · cost ${money(value(p.sec_type, p.shares, p.avgCost))}`,
 
   // One holding in a /portfolio tab: the same fields as holdingLine, named once by portfolio.columns.
   holdingRow: (p: Position) =>
-    `${holdingLabel(p)} · ${formatQuantity(p.sec_type, p.shares)} · ${money(p.avgCost)} · ${total(value(p.sec_type, p.shares, p.avgCost))}`,
+    `${holdingLabel(p)} · ${formatQuantity(p.sec_type, p.shares)} · ${money(p.avgCost)} · ${money(value(p.sec_type, p.shares, p.avgCost))}`,
 };
