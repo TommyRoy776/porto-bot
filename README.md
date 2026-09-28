@@ -209,8 +209,8 @@ Wherever this README shows a `docker compose run --rm porto-bot node dist/...` c
 |-----------------------|--------------------------------------------------|-----------------------------|----------|
 | `/buy stock`          | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
 | `/sell stock`         | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
-| `/buy crypto`         | Record crypto you bought                         | `ticker`, `amount`, `price` | `date`   |
-| `/sell crypto`        | Record crypto you sold                           | `ticker`, `amount`, `price` | `date`   |
+| `/buy crypto`         | Record crypto you bought                         | `ticker`, `amount`, `total` | `date`   |
+| `/sell crypto`        | Record crypto you sold                           | `ticker`, `amount`, `total` | `date`   |
 | `/buy option`         | Record option contracts you bought               | `ticker`, `right`, `strike`, `expiry`, `contracts`, `price` | `date` |
 | `/sell option`        | Record option contracts you sold                 | `ticker`, `right`, `strike`, `expiry`, `contracts`, `price` | `date` |
 | `/portfolio`          | Show holdings and transactions, one tab per type | —                           | `user`   |
@@ -228,11 +228,12 @@ What the options mean:
 | `ticker` | Stock symbol, like `AAPL`. For crypto, the coin and currency, like `BTC-USD`            |
 | `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
 | `amount` | Number of coins, like `0.00034`, up to 8 decimal places                                 |
+| `total`  | Crypto only: what you paid or received in total, in USD, like `100`. `amount:0.00001 total:100` means 0.00001 coins for $100, and the bot works out the price per coin |
 | `right`  | Options only: `Call` or `Put`                                                           |
 | `strike` | Options only: the strike price per share, like `150`                                    |
 | `expiry` | Options only: the expiry date as `YYYY-MM-DD`. When buying, today or later              |
 | `contracts` | Options only: number of contracts, a whole number                                    |
-| `price`  | Price per share or coin in USD, above 0, up to 8 decimals. A leading `$` is optional. For options, the price per share as quoted: a contract costs 100 times this |
+| `price`  | Price per share in USD, above 0, up to 8 decimals. A leading `$` is optional. For options, the price per share as quoted: a contract costs 100 times this |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
 | `id`     | A transaction reference, like `BSS01`                                                   |

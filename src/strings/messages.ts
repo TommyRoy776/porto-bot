@@ -34,7 +34,9 @@ const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'
     ? `**SPLIT** ${tx.split_to}:${tx.split_from} of **${tx.ticker}**` +
       (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} shares` : '')
-    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unit(tx)} of **${tx.ticker}**${contract(tx)} @ ${money(tx.price!)}`;
+    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unit(tx)} of **${tx.ticker}**${contract(tx)} ` +
+      // Crypto is bought for a total ("0.5 BTC for $30,000"); the price per coin goes on the next line.
+      (tx.sec_type === 'CRYPTO' ? `for ${total(value(tx.sec_type, tx.shares!, tx.price!))}` : `@ ${money(tx.price!)}`);
 
 // Realized P/L with its sign, e.g. "+$150.00" or "-$0.50".
 const signed = (n: number) => (n < 0 ? '-' : '+') + total(Math.abs(n));
@@ -42,7 +44,8 @@ const signed = (n: number) => (n < 0 ? '-' : '+') + total(Math.abs(n));
 const meta = (tx: Tx, realized?: number | null) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
-    : `\`${tx.ref}\` · total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · ` +
+    : `\`${tx.ref}\` · ` +
+      (tx.sec_type === 'CRYPTO' ? `${money(tx.price!)} per coin · ` : `total ${total(value(tx.sec_type, tx.shares!, tx.price!))} · `) +
       (realized != null ? `P/L ${signed(realized)} · ` : '') +
       date(tx.trade_date);
 
@@ -74,7 +77,8 @@ export const messages = {
     anyTicker: 'Ticker symbol, e.g. AAPL or BTC-USD',
     cryptoTicker: 'Coin and currency, e.g. BTC-USD. BTC alone means BTC-USD',
     amount: 'Number of coins, up to 8 decimals, e.g. 0.00034',
-    coinPrice: 'Price per coin',
+    totalPaid: 'What you paid in total, in USD, e.g. 100',
+    totalReceived: 'What you received in total, in USD, e.g. 100',
     optionTicker: 'Ticker of the underlying stock, e.g. AAPL',
     right: 'Call or put',
     strike: 'Strike price per share, e.g. 150',
@@ -88,6 +92,7 @@ export const messages = {
 
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
   invalidLookupTicker: 'Tickers are up to 15 letters, digits, dots or dashes, like `AAPL` or `BTC-USD`.',
+  invalidTotal: 'Total must be above 0 and at most $10,000,000, with at most 8 decimals, like `100`.',
   invalidRight: 'Choose `Call` or `Put`.',
   invalidStrike: 'Strike must be above 0 and at most $10,000,000, with at most 8 decimals, like `150`.',
   invalidExpiry: 'Expiry must be `YYYY-MM-DD`, and today or later for a buy.',
@@ -158,6 +163,7 @@ export const messages = {
       amount: 'Amount (coins)',
       contracts: 'Contracts',
       price: 'Price per share',
+      total: 'Total (USD)',
       date: 'Date (YYYY-MM-DD)',
     },
     split: 'Split rows cannot be amended. Use /delete to undo a split.',
