@@ -1,36 +1,76 @@
-import { date, money, shares, total } from '../components/format.js';
+import { date, money } from '../components/format.js';
 import type { Position, Tx } from '../components/ledger.js';
+import { formatQuantity, value, type Holdable } from '../components/units.js';
+import { shortDate, toDateString } from '../components/validate.js';
 
 // Every transaction renders the same way, in two lines:
 //
 //   **ACTION** QUANTITY × UNIT of **TICKER** @ UNIT_PRICE
 //   `REF` · total TOTAL · DATE
 //
-// Rows that have no price, like splits, put their detail on the first line and drop the total.
-// New transaction types (V2 options) follow the same shape: "**BUY** 2 × CALL of **AAPL** ...".
-// The paradigm is documented in CLAUDE.md; keep it in sync.
-// Share counts are in hundredths (1278 = 12.78 shares), so money totals divide by 100.
+// Rows that have no price, like splits, put their detail on the first line and drop the total. An
+// option names its contract after the ticker: "**BUY** 2 × CALL of **AAPL** $150.00 01/16/26 @ $3.20".
+// Crypto shows its total on the first line and its price per coin on the second. A sell adds
+// "P/L 🟢 +$12.34" before the date. In /portfolio and /position each transaction is its
+// own text display, with a Separator component between entries (src/components/views.ts); elsewhere
+// it is a plain message or embed. Holdings are one line each, see holdingLine.
+// Quantities are stored scaled (src/components/units.ts), so formatQuantity and value do the unscaling.
+
+// What a quantity of each type is called, upper case to match an option's CALL or PUT.
+const quantityUnit = { STOCK: 'SHARES', CRYPTO: 'COINS', OPTION: 'CONTRACTS' };
+
+// What one unit is called in a transaction line: an option's unit is its right, CALL or PUT.
+const unit = (tx: Tx) => (tx.sec_type === 'OPTION' ? tx.opt_right : quantityUnit[tx.sec_type as Holdable]);
+
+type Contract = Pick<Tx, 'sec_type' | 'strike' | 'expiry'>;
+
+// An option's strike and expiry, after its ticker: " $150.00 01/16/26". Empty for anything else.
+const contract = (p: Contract) => (p.sec_type === 'OPTION' ? ` ${money(p.strike!)} ${shortDate(p.expiry!)}` : '');
+
+// A position's name: the ticker, and for an option the contract, e.g. "AAPL CALL $150.00 01/16/26".
+const positionLabel = (p: Contract & Pick<Tx, 'ticker' | 'opt_right'>) =>
+  p.sec_type === 'OPTION' ? `${p.ticker} ${p.opt_right}${contract(p)}` : p.ticker;
+
+// A held option past its expiry stays held until the member records the sale (possibly at $0), so
+// it is marked instead of dropped. Shortcut: "past" is by UTC date, so the mark appears at 00:00 UTC
+// after the expiry date, a few hours after the 16:00 New York close, whatever TZ is set to.
+const expired = (p: Contract) =>
+  p.sec_type === 'OPTION' && toDateString(p.expiry!) < toDateString(Date.now() / 1000) ? ' (expired)' : '';
+
+// A holding's name in bold, then the expired mark if any.
+const holdingLabel = (p: Position) => `**${positionLabel(p)}**${expired(p)}`;
+
 const action = (tx: Tx, counts?: [number, number]) =>
   tx.sec_type === 'SPLIT'
     ? `**SPLIT** ${tx.split_to}:${tx.split_from} of **${tx.ticker}**` +
-      (counts ? ` — ${shares(counts[0])} → ${shares(counts[1])} shares` : '')
-    : `**${tx.side}** ${shares(tx.shares!)} × shares of **${tx.ticker}** @ ${money(tx.price!)}`;
+      (counts ? ` — ${formatQuantity('STOCK', counts[0])} → ${formatQuantity('STOCK', counts[1])} ${quantityUnit.STOCK}` : '')
+    : `**${tx.side}** ${formatQuantity(tx.sec_type, tx.shares!)} × ${unit(tx)} of **${tx.ticker}**${contract(tx)} ` +
+      // Crypto is bought for a total ("0.5 BTC for $30,000"); the price per coin goes on the next line.
+      (tx.sec_type === 'CRYPTO' ? `for ${money(value(tx.sec_type, tx.shares!, tx.price!))}` : `@ ${money(tx.price!)}`);
 
-const meta = (tx: Tx) =>
+// P/L with a coloured dot and its sign, e.g. "🟢 +$150.00", "🔴 -$0.50", or "⚪ $0.00" when it
+// rounds to nothing. Compared in cents, so a P/L of a fraction of a cent never shows "🔴 -$0.00".
+function signed(n: number) {
+  const cents = Math.round(n * 100);
+  return cents > 0 ? `🟢 +${money(n)}` : cents < 0 ? `🔴 -${money(-n)}` : `⚪ ${money(0)}`;
+}
+
+const meta = (tx: Tx, realized?: number | null) =>
   tx.sec_type === 'SPLIT'
     ? `\`${tx.ref}\` · ${date(tx.trade_date)}`
-    : `\`${tx.ref}\` · total ${total((tx.shares! * tx.price!) / 100)} · ${date(tx.trade_date)}`;
+    : `\`${tx.ref}\` · ` +
+      (tx.sec_type === 'CRYPTO' ? `${money(tx.price!)} per coin · ` : `total ${money(value(tx.sec_type, tx.shares!, tx.price!))} · `) +
+      (realized != null ? `P/L ${signed(realized)} · ` : '') +
+      date(tx.trade_date);
 
-const txLine = (tx: Tx, counts?: [number, number]) => `${action(tx, counts)}\n${meta(tx)}`;
-
-// Thin rule between transactions in a list, so entries do not run together.
-const SEPARATOR = '\n────────────\n';
-const txList = (lines: string[]) => lines.join(SEPARATOR);
+// A split's `counts` are the shares held before and after it; a sell's `realized` is its P/L. Both
+// come from replay (History), so a line drawn from a bare row leaves them out.
+type Extra = { counts?: [number, number]; realized?: number | null };
+const txLine = (tx: Tx, { counts, realized }: Extra = {}) => `${action(tx, counts)}\n${meta(tx, realized)}`;
 
 // Every user-facing string lives here.
 export const messages = {
   txLine,
-  txList,
   unexpectedError: 'Something went wrong. Try again, and tell the server owner if it keeps happening.',
 
   confirm: 'Confirm',
@@ -46,40 +86,79 @@ export const messages = {
 
   options: {
     ticker: 'Ticker symbol, e.g. AAPL',
-    shares: 'Number of shares, up to 2 decimals, e.g. 12.78',
+    shares: 'Number of shares, up to 3 decimals, e.g. 12.785',
     price: 'Price per share',
+    anyTicker: 'Ticker symbol, e.g. AAPL or BTC-USD',
+    cryptoTicker: 'Coin and currency, e.g. BTC-USD. BTC alone means BTC-USD',
+    amount: 'Number of coins, up to 6 decimals, e.g. 0.00034',
+    totalPaid: 'What you paid in total, in USD, e.g. 100',
+    totalReceived: 'What you received in total, in USD, e.g. 100. Can be 0',
+    optionTicker: 'Ticker of the underlying stock, e.g. AAPL',
+    type: 'Call or put',
+    strike: 'Strike price per share, e.g. 150',
+    expiry: 'Expiry as MM/DD/YY, or MM/DD for this year. For a buy, today or later',
+    contracts: 'Number of contracts, a whole number',
+    premium: 'Price per share of one contract as quoted, e.g. 3.20. A contract costs 100 times this',
     date: 'Trade date as YYYY-MM-DD. Defaults to today',
     user: 'Whose transactions to show. Defaults to you',
-    id: 'Transaction ID, e.g. BS01, shown next to each transaction',
+    id: 'Transaction ID, e.g. BSS01, shown next to each transaction',
   },
 
   invalidTicker: 'Tickers are 1–6 letters or dots, like `AAPL` or `BRK.B`.',
-  invalidRef: 'Transaction IDs look like `BS01` (buy), `SS01` (sell) or `SL01` (split).',
-  invalidShares: 'Shares must be above 0 with at most 2 decimals, like `12.78`.',
-  invalidPrice: 'Price must be a number, 0 or more.',
+  invalidLookupTicker: 'Tickers are up to 15 letters, digits, dots or dashes, like `AAPL` or `BTC-USD`.',
+  invalidTotal: 'Total must be above 0 (a sale can be 0) and at most $10,000,000, with at most 8 decimals, like `100`.',
+  invalidOptionType: 'Choose `Call` or `Put`.',
+  invalidStrike: 'Strike must be above 0 and at most $10,000,000, with at most 8 decimals, like `150`.',
+  invalidExpiry: 'Expiry must be `MM/DD/YY`, or `MM/DD` for this year, like `12/24`. For a buy, today or later.',
+  invalidContracts: 'Contracts must be a whole number, 1 or more.',
+  invalidRef: 'Transaction IDs look like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split).',
+  invalidShares: 'Shares must be above 0 with at most 3 decimals, like `12.785`.',
+  invalidCryptoTicker: 'Crypto tickers are a coin and a currency, like `BTC-USD`, or just the coin, like `BTC`.',
+  invalidAmount: 'Amount must be above 0 and below 90,000,000, with at most 6 decimals, like `0.00034`.',
+  invalidPrice: 'Price must be above 0 (a sale can be 0) and at most $10,000,000, with at most 8 decimals, like `150.25`.',
   invalidDate: 'Dates must be `YYYY-MM-DD` and not in the future.',
   oversold: (tx: Tx) =>
-    `That would leave you with negative **${tx.ticker}** shares as of ${date(tx.trade_date)}. Nothing was changed.`,
+    `That would leave you with a negative **${positionLabel(tx)}** position as of ${date(tx.trade_date)}. Nothing was changed.`,
 
-  buy: { description: 'Record shares you bought' },
-  sell: { description: 'Record shares you sold' },
-  recorded: (userId: string, tx: Tx) => `**Trade recorded**\n<@${userId}> ${txLine(tx)}`,
+  // One description per /buy and /sell subcommand, keyed by the subcommand name.
+  buy: {
+    description: 'Record a trade you bought',
+    stock: 'Record shares you bought',
+    crypto: 'Record crypto you bought',
+    option: 'Record option contracts you bought',
+  } as Record<string, string>,
+  sell: {
+    description: 'Record a trade you sold',
+    stock: 'Record shares you sold',
+    crypto: 'Record crypto you sold',
+    option: 'Record option contracts you sold',
+  } as Record<string, string>,
+  recorded: (userId: string, tx: Tx, realized: number | null) => `**Trade recorded**\n<@${userId}> ${txLine(tx, { realized })}`,
 
   portfolio: {
-    description: 'Show holdings and recent transactions',
-    columns: ['Ticker', 'Shares', 'Avg cost', 'Cost basis'],
-    noHoldings: 'No holdings.',
-    body: (userId: string, holdings: string, recent: string[]) =>
-      `## Portfolio of <@${userId}>\n**Holdings**\n${holdings}\n**Recent transactions**\n` +
-      (recent.length ? txList(recent) : 'None yet.'),
+    description: 'Show holdings and transactions, one tab per security type',
+    title: (userId: string) => `## Portfolio of <@${userId}>`,
+    // Tab button labels, also the heading above the open tab.
+    tabs: { STOCK: 'Stocks', CRYPTO: 'Crypto', OPTION: 'Options', TX: 'Transactions' },
+    // The field label row above a holdings tab's rows, naming each field of holdingRow in order.
+    columns: {
+      STOCK: '-# Ticker · Shares · Avg cost · Cost basis',
+      CRYPTO: '-# Coin · Coins · Avg cost · Cost basis',
+      OPTION: '-# Contract · Contracts · Avg price · Cost basis',
+    },
+    empty: { STOCK: 'No stock holdings.', CRYPTO: 'No crypto holdings.', OPTION: 'No option holdings.' },
+    // /position's single total; /portfolio shows the open tab's cost beside the total of every holding.
+    total: (cost: number) => `**Total cost basis** ${money(cost)}`,
+    tabTotal: (tabCost: number, allCost: number) => `**Cost basis** ${money(tabCost)} · **Total, all holdings** ${money(allCost)}`,
+    noTransactions: 'No transactions yet.',
   },
 
   position: {
     description: 'Show every transaction for one ticker, with IDs for /amend and /delete',
     none: (userId: string, ticker: string) => `<@${userId}> has no **${ticker}** transactions.`,
     noShares: 'No shares held.',
-    body: (userId: string, ticker: string, summary: string, lines: string[]) =>
-      `## ${ticker} — <@${userId}>\n${summary}\n**Transactions**\n${txList(lines)}`,
+    title: (userId: string, ticker: string) => `## ${ticker} — <@${userId}>`,
+    transactions: '### Transactions',
   },
 
   delete: {
@@ -95,12 +174,16 @@ export const messages = {
       ticker: 'Ticker',
       side: 'Side (BUY or SELL)',
       shares: 'Shares',
+      amount: 'Amount (coins)',
+      contracts: 'Contracts',
       price: 'Price per share',
+      total: 'Total (USD)',
       date: 'Date (YYYY-MM-DD)',
     },
     split: 'Split rows cannot be amended. Use /delete to undo a split.',
     invalidSide: 'Side must be `BUY` or `SELL`.',
-    done: (userId: string, tx: Tx) => `**Transaction amended**\n<@${userId}> ${txLine(tx)}`,
+    done: (userId: string, tx: Tx, realized: number | null) =>
+      `**Transaction amended**\n<@${userId}> ${txLine(tx, { realized })}`,
   },
 
   reset: {
@@ -123,12 +206,13 @@ export const messages = {
     done: (ticker: string, ratio: { split_to: number; split_from: number }, count: number) =>
       `Applied a ${ratio.split_to}:${ratio.split_from} split to **${ticker}** for ${count} ${count === 1 ? 'member' : 'members'}.`,
   },
-};
 
-// A holdings row for the table in /portfolio and /position: ticker, shares, average cost, cost basis.
-export const holdingRow = (position: Position) => [
-  position.ticker,
-  shares(position.shares),
-  money(position.avgCost),
-  total((position.shares * position.avgCost) / 100),
-];
+  // One holding in /position: position, quantity, average cost, cost basis.
+  holdingLine: (p: Position) =>
+    `${holdingLabel(p)} · ${formatQuantity(p.sec_type, p.shares)} ${quantityUnit[p.sec_type]} · ` +
+    `avg ${money(p.avgCost)} · cost ${money(value(p.sec_type, p.shares, p.avgCost))}`,
+
+  // One holding in a /portfolio tab: the same fields as holdingLine, named once by portfolio.columns.
+  holdingRow: (p: Position) =>
+    `${holdingLabel(p)} · ${formatQuantity(p.sec_type, p.shares)} · ${money(p.avgCost)} · ${money(value(p.sec_type, p.shares, p.avgCost))}`,
+};

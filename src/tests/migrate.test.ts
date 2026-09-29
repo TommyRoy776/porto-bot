@@ -78,7 +78,7 @@ test('the real migrations apply to a fresh database', () => {
   const columns = db.prepare('SELECT name FROM pragma_table_info(?)').all('transactions').map((r) => r.name);
   assert.deepEqual(columns, [
     'id', 'user_id', 'sec_type', 'side', 'ticker', 'shares', 'price', 'trade_date', 'created_at', 'split_from',
-    'split_to', 'ref',
+    'split_to', 'ref', 'opt_right', 'strike', 'expiry',
   ]);
 });
 
@@ -98,7 +98,8 @@ test('002 backfills references for rows written before it, and seeds the counter
      VALUES ('u', 'SPLIT', NULL, 'AAPL', 1, 2, 3)`,
   ).run();
 
-  migrate(db);
+  const upTo002 = ['001_transactions.sql', '002_transaction_refs.sql'];
+  migrate(db, dirWith(Object.fromEntries(upTo002.map((f) => [f, readFileSync(join(migrationsDir, f), 'utf8')]))));
 
   assert.deepEqual(
     db.prepare('SELECT ref FROM transactions ORDER BY id').all().map((r) => r.ref),
@@ -110,4 +111,51 @@ test('002 backfills references for rows written before it, and seeds the counter
     { prefix: 'SL', next: 2 },
     { prefix: 'SS', next: 2 },
   ]);
+});
+
+test('ref_prefixes renames 2-letter references and counters to 3 letters', () => {
+  const db = new DatabaseSync(':memory:');
+  // Migrate to just before ref_prefixes, write rows the 2-letter way, then apply the rest.
+  const before = readdirSync(migrationsDir).filter((f) => /^\d+_/.test(f) && parseInt(f, 10) < 2026092700);
+  migrate(db, dirWith(Object.fromEntries(before.map((f) => [f, readFileSync(join(migrationsDir, f), 'utf8')]))));
+  const insert = db.prepare(
+    `INSERT INTO transactions (user_id, sec_type, side, ticker, shares, price, trade_date, split_from, split_to, ref)
+     VALUES ('u', ?, ?, 'AAPL', ?, ?, 1, ?, ?, ?)`,
+  );
+  insert.run('STOCK', 'BUY', 100, 1, null, null, 'BS01');
+  insert.run('STOCK', 'SELL', 100, 1, null, null, 'SS01');
+  insert.run('STOCK', 'BUY', 100, 1, null, null, 'BS02');
+  insert.run('SPLIT', null, null, null, 2, 3, 'SL01');
+  db.exec("INSERT INTO ref_counters VALUES ('BS', 3), ('SS', 2), ('SL', 2)");
+
+  migrate(db);
+
+  assert.deepEqual(
+    db.prepare('SELECT ref FROM transactions ORDER BY id').all().map((r) => r.ref),
+    ['BSS01', 'SSS01', 'BSS02', 'XSS01'],
+  );
+  const counters = db.prepare('SELECT prefix, next FROM ref_counters ORDER BY prefix').all();
+  assert.deepEqual(counters.map(({ prefix, next }) => ({ prefix, next })), [
+    { prefix: 'BSS', next: 3 },
+    { prefix: 'SSS', next: 2 },
+    { prefix: 'XSS', next: 2 },
+  ]);
+});
+
+test('stock quantities move from hundredths to thousandths; crypto, options and splits are untouched', () => {
+  const db = new DatabaseSync(':memory:');
+  const before = readdirSync(migrationsDir).filter((f) => /^\d+_/.test(f) && parseInt(f, 10) < 2026092800);
+  migrate(db, dirWith(Object.fromEntries(before.map((f) => [f, readFileSync(join(migrationsDir, f), 'utf8')]))));
+  const insert = db.prepare(
+    `INSERT INTO transactions (user_id, sec_type, side, ticker, shares, price, trade_date, split_from, split_to, ref)
+     VALUES ('u', ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+  );
+  insert.run('STOCK', 'BUY', 'AAPL', 1278, 1, null, null, 'BSS01');
+  insert.run('CRYPTO', 'BUY', 'BTC-USD', 34_000, 1, null, null, 'BCC01');
+  insert.run('OPTION', 'BUY', 'AAPL', 2, 1, null, null, 'BOC01');
+  insert.run('SPLIT', null, 'AAPL', null, null, 2, 3, 'XSS01');
+
+  migrate(db);
+
+  assert.deepEqual(db.prepare('SELECT shares FROM transactions ORDER BY id').all().map((r) => r.shares), [12_780, 34_000, 2, null]);
 });

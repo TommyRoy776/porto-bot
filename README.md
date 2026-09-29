@@ -60,6 +60,8 @@ You should now have three values saved: an **application ID**, a **bot token**, 
 
 ## Step 2 — Create two files
 
+> **On TrueNAS?** Skip Steps 2 to 4 and follow [Installing on TrueNAS](#installing-on-truenas) instead.
+
 Make a new folder anywhere on the machine that runs Docker, for example `porto-bot`. Create these two files inside it.
 
 **`compose.yaml`** — tells Docker how to run the bot:
@@ -71,6 +73,7 @@ services:
     container_name: porto-bot
     env_file: .env
     volumes:
+      # Keeps the bot's data between restarts and updates (see "Where the data lives" below).
       - data:/data
     restart: unless-stopped
 
@@ -98,6 +101,12 @@ DB_PATH=/data/porto.db
 TZ=America/New_York
 ```
 
+**Where the data lives.** Everything the bot records is in one file, `porto.db`, in the folder `/data` inside the
+container. The `volumes:` line `- data:/data` keeps that folder in a Docker volume named `data`, so it survives
+restarts and updates. To keep it in a folder you choose instead (for example on a NAS), replace `data` on the left with
+that folder's path, such as `- /mnt/tank/apps/porto-bot:/data`, and remove the `volumes:` block at the bottom. The bot
+runs as user ID 1000 inside the container, so that folder must be writable by user ID 1000.
+
 The `container_name` line gives the container a predictable name, so commands like `docker logs porto-bot` work no matter what you called the folder. That name has to be unique on the machine, so to run a second copy alongside the first, use a separate folder and change both the service name and `container_name` to something else, such as `porto-bot-2`.
 
 Do not put quotes around the values, and do not leave spaces around the `=`.
@@ -124,7 +133,8 @@ The first run downloads the bot, which takes a moment. To check that it worked:
 docker compose logs porto-bot
 ```
 
-Look for a line starting with `Logged in as`. Your bot should now show as online in your server's member list.
+Look for a line starting with `Logged in as`. Your bot should now show as online in your server's member list, with
+the version it runs, like `v2.0.0`, as its status.
 
 ---
 
@@ -145,13 +155,65 @@ That's it. The bot is ready to use.
 
 ---
 
+## Installing on TrueNAS
+
+These steps use the **Custom App** screen of TrueNAS SCALE 24.10 ("Electric Eel") or later, which runs apps with
+Docker. They replace Steps 2 to 4. Have the three values from Step 1 ready.
+
+1. Make a dataset for the bot's data:
+    - Go to **Datasets**, select the pool or parent dataset to put it in, and click **Add Dataset**.
+    - Set **Name** to `porto-bot` and **Dataset Preset** to **Apps**, then click **Save**.
+    - The **Apps** preset gives the built-in `apps` user (user ID 568) access. The bot runs as that user (step 3).
+    - Note the dataset's path, for example `/mnt/tank/porto-bot`.
+2. Go to **Apps**, click **Discover Apps**, then **Custom App**.
+3. Fill in the form. Leave everything not listed here as it is.
+    - **Application Name**: `porto-bot`
+    - **Image Configuration**: **Repository** `ghcr.io/aer35/porto-bot`, **Tag** `latest`. Set **Pull Policy** to
+      always pull the image, so that restarting the app picks up updates.
+    - **Container Configuration**: under **Environment Variables**, add one entry for each line of the `.env` file in
+      Step 2: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID` and `DISCORD_GUILD_ID` with your values, `DB_PATH` set to
+      `/data/porto.db`, and `TZ` set to your time zone. Set **Restart Policy** to **Unless Stopped**.
+    - **Security Context Configuration**: turn on **Custom User** and set both **User ID** and **Group ID** to `568`.
+    - **Storage Configuration**: click **Add**, choose **Host Path**, set **Mount Path** to `/data` and **Host Path** to
+      the dataset from step 1. This is where `porto.db` is kept.
+    - **Network Configuration**: add nothing. The bot needs no ports; it only connects out to Discord.
+    - Click **Install**.
+4. When the app shows **Running**, open its logs (**Apps** → **porto-bot** → **Workloads** → the logs icon) and look
+   for a line starting with `Logged in as`.
+5. Turn on the commands. Open **System** → **Shell** and run:
+
+   ```sh
+   sudo docker ps --format '{{.Names}}' | grep porto-bot
+   ```
+
+   This prints the container's name, for example `ix-porto-bot-porto-bot-1`. Use it in:
+
+   ```sh
+   sudo docker exec ix-porto-bot-porto-bot-1 node dist/register.js
+   ```
+
+   Then reload Discord as in Step 4.
+
+Wherever this README shows a `docker compose run --rm porto-bot node dist/...` command, the TrueNAS equivalent is
+`sudo docker exec <container name> node dist/...` in the TrueNAS shell, with the app running.
+
+- **Updating**: stop the app and start it again, which pulls the newest image, then run step 5 again.
+- **Backing up**: `porto.db` is a normal file in the dataset from step 1. Snapshot the dataset (**Data Protection** →
+  **Periodic Snapshot Tasks**), or stop the app and copy the file.
+
+---
+
 ## Using the bot
 
 | Command               | What it does                                     | Required                    | Optional |
 |-----------------------|--------------------------------------------------|-----------------------------|----------|
-| `/buy`                | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
-| `/sell`               | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
-| `/portfolio`          | Show holdings and recent transactions            | —                           | `user`   |
+| `/buy stock`          | Record shares you bought                         | `ticker`, `shares`, `price` | `date`   |
+| `/sell stock`         | Record shares you sold                           | `ticker`, `shares`, `price` | `date`   |
+| `/buy crypto`         | Record crypto you bought                         | `ticker`, `amount`, `total` | `date`   |
+| `/sell crypto`        | Record crypto you sold                           | `ticker`, `amount`, `total` | `date`   |
+| `/buy option`         | Record option contracts you bought               | `ticker`, `type`, `strike`, `expiry`, `contracts`, `price` | `date` |
+| `/sell option`        | Record option contracts you sold                 | `ticker`, `type`, `strike`, `expiry`, `contracts`, `price` | `date` |
+| `/portfolio`          | Show holdings and transactions, one tab per type | —                           | `user`   |
 | `/position`           | Show every transaction for one ticker            | `ticker`                    | `user`   |
 | `/amend`              | Fix a transaction you entered wrong              | `id`                        | —        |
 | `/delete`             | Remove a transaction                             | `id`                        | —        |
@@ -163,19 +225,34 @@ What the options mean:
 
 | Field    | Meaning                                                                                 |
 |----------|-----------------------------------------------------------------------------------------|
-| `ticker` | Stock symbol, like `AAPL`                                                               |
-| `shares` | Number of shares, like `10.55`. Fractional shares are supported, up to 2 decimal places |
-| `price`  | Price per share in USD. A leading `$` is optional                                       |
+| `ticker` | Stock symbol, like `AAPL`. For crypto, the coin and currency, like `BTC-USD`            |
+| `shares` | Number of shares, like `10.555`. Fractional shares are supported, up to 3 decimal places |
+| `amount` | Number of coins, like `0.00034`, up to 6 decimal places                                 |
+| `total`  | Crypto only: what you paid or received in total, in USD, like `100`. `amount:0.00001 total:100` means 0.00001 coins for $100, and the bot works out the price per coin. A sale can be `0` |
+| `type`   | Options only: `Call` or `Put`                                                           |
+| `strike` | Options only: the strike price per share, like `150`                                    |
+| `expiry` | Options only: the expiry date as `MM/DD/YY`, or `MM/DD` for this year, like `12/24`. When buying, today or later. `/sell option` suggests the strikes and expiries you hold |
+| `contracts` | Options only: number of contracts, a whole number                                    |
+| `price`  | Price per share in USD, above 0 (a sale can be `0`), up to 8 decimals. A leading `$` is optional. For options, the price per share as quoted: a contract costs 100 times this |
 | `date`   | Trade date as `YYYY-MM-DD`, cannot be in the future. Defaults to today                  |
 | `user`   | Whose transactions to show. Defaults to you                                             |
-| `id`     | A transaction reference, like `BS01`                                                    |
+| `id`     | A transaction reference, like `BSS01`                                                   |
 | `ratio`  | The split, written as new:old, like `3:2` or `1:10`                                     |
 
 
 A few things worth knowing:
 
-- Every transaction gets a short ID like `BS01` (buy), `SS01` (sell) or `SL01` (split), shown beside it. That is what
-  you type into `/amend` and `/delete`.
+- Crypto amounts are shown to 3 decimal places, cut off rather than rounded. Option contracts are whole numbers only. Every dollar amount, including
+  prices and average costs, is shown rounded to the cent; prices are stored with up to 8 decimals.
+- Each option contract (ticker, call or put, strike and expiry) is its own holding. Contracts are never exercised; to
+  close one, record a `/sell option` for the same contract, which also works after it has expired. A contract past its
+  expiry stays in your holdings, marked `(expired)`, until you record the sale; one that expired worthless is sold for
+  `0`. An expired contract cannot be bought. `/amend` can change an option's contracts, price and date, but not the contract itself.
+- Every transaction gets a short ID like `BSS01` (buy), `SSS01` (sell) or `XSS01` (split), shown beside it. Crypto
+  uses `BCC01` and `SCC01`, and options `BOC01`, `BOP01`, `SOC01` and `SOP01` (call or put). That is what you type into `/amend` and `/delete`. IDs from before version 2 gained a letter: `BS01` is now `BSS01`, `SS01`
+  is `SSS01` and `SL01` is `XSS01`.
+- Every sale shows its realized profit or loss (`P/L`), against the average cost at the time of that sale: 🟢 for a gain,
+  🔴 for a loss.
 - Deleting or amending a transaction will **not** change or remove the message already in the channel.
 - The bot never lets you sell more shares than you own, or edit your history into an impossible state.
 - `/reset` and `/split` are limited to members with the **Manage Server** permission (generally moderators). You can change who may use them in
@@ -191,7 +268,23 @@ docker compose up -d
 docker compose run --rm porto-bot node dist/register.js
 ```
 
-Your data is kept, and any changes to how it is stored are applied automatically.
+Your data is kept, and any changes to how it is stored are applied automatically. To check which version is running,
+look at the bot's status in your server's member list.
+
+### Moving crypto recorded before version 2
+
+Before version 2 the bot had no crypto support, so members may have recorded coins with `/buy` as if they were stocks
+(for example `BTC`). After updating to version 2, you can turn those entries into real crypto entries, for every member
+at once. Run this once per coin, with the ticker they used:
+
+```sh
+docker compose stop porto-bot
+docker compose run --rm porto-bot node dist/convertCrypto.js BTC
+docker compose start porto-bot
+```
+
+The entries become `BTC-USD` crypto entries with new IDs like `BCC01`. To store the coin under another name, add it
+at the end, for example `node dist/convertCrypto.js XBT BTC-USD`.
 
 To stay on a specific version instead of the newest, change the `image:` line in `compose.yaml` to a version from
 the [releases page](https://github.com/aer35/porto-bot/releases), for example:

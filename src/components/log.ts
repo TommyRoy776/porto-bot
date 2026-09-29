@@ -1,4 +1,5 @@
 import type { Tx } from './ledger.js';
+import { quantityText, value } from './units.js';
 import { toDateString } from './validate.js';
 
 // One line per stored change, so `docker compose logs porto-bot` is a record of every transaction and
@@ -12,8 +13,10 @@ export function logRow(event: string, tx: Tx) {
   const detail =
     tx.sec_type === 'SPLIT'
       ? `${tx.ref} SPLIT ${tx.split_to}:${tx.split_from} ${tx.ticker} date=${toDateString(tx.trade_date)}`
-      : // shares is stored in hundredths (1278 = 12.78 shares)
-        `${tx.ref} ${tx.side} ${tx.shares! / 100} ${tx.ticker} @ ${tx.price} total=${((tx.shares! * tx.price!) / 100).toFixed(2)} date=${toDateString(tx.trade_date)}`;
+      : `${tx.ref} ${tx.sec_type} ${tx.side} ${quantityText(tx.shares!, tx.sec_type)} ${tx.ticker}` +
+        (tx.sec_type === 'OPTION' ? ` ${tx.opt_right} ${tx.strike} ${toDateString(tx.expiry!)}` : '') +
+        ` @ ${tx.price} ` +
+        `total=${value(tx.sec_type, tx.shares!, tx.price!).toFixed(2)} date=${toDateString(tx.trade_date)}`;
   logTx(event, tx.user_id, detail);
   return tx;
 }
